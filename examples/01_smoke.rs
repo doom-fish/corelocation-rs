@@ -6,6 +6,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "authorization_status = {:?}",
         manager.authorization_status()
     );
+    println!("authorization_snapshot = {:?}", manager.authorization()?);
     println!(
         "location_services_enabled = {}",
         LocationManager::location_services_enabled()
@@ -26,6 +27,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    println!("✅ corelocation manager + geocoder OK");
+    println!("✅ corelocation smoke OK");
     Ok(())
 }

@@ -1,38 +1,90 @@
 use core::ffi::c_void;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
+pub use crate::authorization::AuthorizationStatus;
+use crate::beacon_identity_condition::{BeaconIdentityCondition, BeaconIdentityConditionSnapshot};
 use crate::error::{from_swift, CoreLocationError};
 use crate::ffi;
 use crate::location::Coordinate;
 use crate::private::{decode_json, to_cstring};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "i32", into = "i32")]
 #[repr(i32)]
-pub enum AuthorizationStatus {
-    NotDetermined = 0,
-    Restricted = 1,
-    Denied = 2,
-    AuthorizedAlways = 3,
-    AuthorizedWhenInUse = 4,
+pub enum RegionState {
+    Unknown = 0,
+    Inside = 1,
+    Outside = 2,
 }
 
-impl AuthorizationStatus {
+impl From<i32> for RegionState {
+    fn from(raw: i32) -> Self {
+        Self::from_raw(raw)
+    }
+}
+
+impl From<RegionState> for i32 {
+    fn from(state: RegionState) -> Self {
+        state as Self
+    }
+}
+
+impl RegionState {
     #[must_use]
     pub const fn from_raw(raw: i32) -> Self {
         match raw {
-            1 => Self::Restricted,
-            2 => Self::Denied,
-            3 => Self::AuthorizedAlways,
-            4 => Self::AuthorizedWhenInUse,
-            _ => Self::NotDetermined,
+            1 => Self::Inside,
+            2 => Self::Outside,
+            _ => Self::Unknown,
         }
     }
+}
 
-    #[must_use]
-    pub const fn is_authorized(self) -> bool {
-        matches!(self, Self::AuthorizedAlways | Self::AuthorizedWhenInUse)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "i32", into = "i32")]
+#[repr(i32)]
+pub enum Proximity {
+    Unknown = 0,
+    Immediate = 1,
+    Near = 2,
+    Far = 3,
+}
+
+impl From<i32> for Proximity {
+    fn from(raw: i32) -> Self {
+        Self::from_raw(raw)
     }
+}
+
+impl From<Proximity> for i32 {
+    fn from(proximity: Proximity) -> Self {
+        proximity as Self
+    }
+}
+
+impl Proximity {
+    #[must_use]
+    pub const fn from_raw(raw: i32) -> Self {
+        match raw {
+            1 => Self::Immediate,
+            2 => Self::Near,
+            3 => Self::Far,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Beacon {
+    pub uuid: String,
+    pub major: u16,
+    pub minor: u16,
+    pub proximity: Proximity,
+    pub accuracy: f64,
+    pub rssi: i64,
+    pub timestamp: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -158,6 +210,28 @@ impl BeaconRegion {
         Self::new_inner(uuid, Some(major), Some(minor), identifier)
     }
 
+    pub fn from_condition(
+        condition: &BeaconIdentityCondition,
+        identifier: &str,
+    ) -> Result<Self, CoreLocationError> {
+        let identifier = to_cstring(identifier)?;
+        let mut raw = core::ptr::null_mut();
+        let mut error = core::ptr::null_mut();
+        let status = unsafe {
+            ffi::cl_beacon_region_new_condition(
+                condition.as_raw(),
+                identifier.as_ptr(),
+                &mut raw,
+                &mut error,
+            )
+        };
+        if status == ffi::status::OK {
+            Ok(Self { raw })
+        } else {
+            Err(from_swift(status, error))
+        }
+    }
+
     fn new_inner(
         uuid: &str,
         major: Option<u16>,
@@ -203,6 +277,32 @@ impl BeaconRegion {
     pub fn snapshot(&self) -> Result<Region, CoreLocationError> {
         let json = unsafe { ffi::cl_region_json(self.raw) };
         decode_json(json)
+    }
+
+    pub fn beacon_identity_condition(
+        &self,
+    ) -> Result<BeaconIdentityConditionSnapshot, CoreLocationError> {
+        let json = unsafe { ffi::cl_beacon_region_condition_json(self.raw) };
+        decode_json(json)
+    }
+
+    pub fn peripheral_data(&self, measured_power: Option<i16>) -> Result<Value, CoreLocationError> {
+        let mut json = core::ptr::null_mut();
+        let mut error = core::ptr::null_mut();
+        let status = unsafe {
+            ffi::cl_beacon_region_peripheral_data_json(
+                self.raw,
+                measured_power.is_some(),
+                measured_power.unwrap_or_default(),
+                &mut json,
+                &mut error,
+            )
+        };
+        if status == ffi::status::OK {
+            decode_json(json)
+        } else {
+            Err(from_swift(status, error))
+        }
     }
 
     pub fn set_notify_on_entry(&self, notify: bool) {

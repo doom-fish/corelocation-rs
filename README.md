@@ -1,14 +1,15 @@
 # corelocation
 
-Safe, idiomatic Rust bindings for Apple's [CoreLocation](https://developer.apple.com/documentation/corelocation) framework — inspect authorization state, work with `CLLocationManager`, geocode addresses, read heading updates, and monitor circular or beacon regions on macOS.
+Safe, idiomatic Rust bindings for Apple's [CoreLocation](https://developer.apple.com/documentation/corelocation) framework — inspect authorization state, work with `CLLocationManager`, monitor circular or beacon regions, read visits and heading updates, geocode addresses, inspect floors, and bridge Swift-refined live location updates on macOS.
 
 ## Features
 
-- **Location manager control** — `LocationManager` wraps desired accuracy, distance filter, authorization requests, continuous updates, one-shot requests, heading updates, and region monitoring.
-- **Delegate callbacks** — `LocationManagerDelegate` and `LocationManagerCallbacks` translate `CLLocationManagerDelegate` updates into Rust closures.
-- **Geocoding** — `Geocoder::geocode_address_string` and `Geocoder::reverse_geocode_location` expose forward and reverse geocoding.
-- **Rich value types** — `Location`, `Heading`, `Placemark`, and `Region` snapshots mirror the public `CoreLocation` SDK surface.
-- **Geofences and beacons** — `CircularRegion` and `BeaconRegion` create monitorable regions that can be registered with a manager.
+- **Location manager control** — `LocationManager` covers desired accuracy, distance filters, activity type, heading configuration, significant-change monitoring, visit monitoring, beacon ranging, region monitoring, and temporary full-accuracy requests.
+- **Authorization snapshots** — `AuthorizationStatus`, `AccuracyAuthorization`, and `AuthorizationSnapshot` expose the manager's macOS authorization state.
+- **Rich value types** — `Location`, `LocationDetails`, `Heading`, `Visit`, `Floor`, `Placemark`, `Region`, `Beacon`, and `BeaconIdentityConditionSnapshot` mirror the `CoreLocation` SDK surface used by the bridge.
+- **Geofences and beacons** — `CircularRegion`, `BeaconRegion`, and `BeaconIdentityCondition` cover circular monitoring, beacon monitoring, peripheral payload generation, and ranging constraints.
+- **Geocoding** — `Geocoder` supports forward, reverse, region-scoped, locale-aware, and postal-address geocoding.
+- **Live updates** — `LocationUpdater`, `LocationUpdate`, and `LiveUpdateConfiguration` bridge the Swift-refined `CLLocationUpdate.liveUpdates(_:)` API on macOS 14+.
 
 ## Requirements
 
@@ -20,7 +21,7 @@ Safe, idiomatic Rust bindings for Apple's [CoreLocation](https://developer.apple
 
 ```toml
 [dependencies]
-corelocation-rs = "0.1.0"
+corelocation-rs = "0.2.0"
 ```
 
 ```rust,no_run
@@ -28,7 +29,7 @@ use corelocation::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let manager = LocationManager::new()?;
-    println!("authorization: {:?}", manager.authorization_status());
+    println!("authorization: {:?}", manager.authorization()?);
     println!("location services: {}", LocationManager::location_services_enabled());
 
     let geocoder = Geocoder::new()?;
@@ -41,19 +42,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## Smoke example
+## Examples
+
+The crate ships with eleven numbered examples covering the requested logical areas:
+
+- `01_smoke` — location manager + authorization + geocoder smoke test
+- `02_location_values` — coordinates, distance helpers, and `LocationDetails`
+- `03_region_monitoring` — circular regions and region snapshots
+- `04_beacon_region` — beacon regions, conditions, and peripheral payload summaries
+- `05_heading_configuration` — heading filters and device orientation
+- `06_geocoder_addresses` — region-scoped and postal-address geocoding
+- `07_floor_details` — `Floor`, `LocationSourceInformation`, and rich location details
+- `08_authorization_snapshot` — manager/global authorization inspection
+- `09_visit_monitoring` — visit monitoring controls and `Visit` snapshots
+- `10_location_update_stream` — `LocationUpdater` and `LocationUpdate`
+- `11_beacon_identity_condition` — Swift-refined beacon identity conditions
+
+Run any example with:
 
 ```bash
 cargo run --example 01_smoke
 ```
 
-The smoke example intentionally avoids requesting location authorization. It verifies manager creation, current authorization state, location-services availability, and best-effort forward geocoding for `Apple Park, Cupertino`.
+## Testing
+
+The crate includes one integration test file per logical area under `tests/`. Run the full suite with:
+
+```bash
+cargo test
+```
+
+## Coverage audit
+
+See [`COVERAGE.md`](COVERAGE.md) for the v0.2.0 header audit, implemented rows, and deferred framework families.
 
 ## Notes
 
 - `LocationManager` delegate callbacks are delivered on `CoreLocation`'s run-loop thread. CLI programs that want streaming updates should keep a run loop alive (`CFRunLoopRun`, `NSApplication::run`, etc.).
-- `Geocoder` is exposed as a synchronous Rust API using a semaphore-backed bridge around `CoreLocation`'s completion handlers.
-- `CLMonitor`, visit monitoring, significant-change monitoring, and temporary full-accuracy authorization are intentionally deferred to a future release.
+- `Geocoder` is exposed as a synchronous Rust API using a semaphore-backed bridge around `CoreLocation` completion handlers.
+- `LocationUpdater` mirrors the Swift-refined `CLLocationUpdate.liveUpdates(_:)` API and requires macOS 14.0 or newer.
+- The newer `CLMonitor` / session families are documented in `COVERAGE.md` as deferred follow-up work for a later crate release.
 
 ## License
 

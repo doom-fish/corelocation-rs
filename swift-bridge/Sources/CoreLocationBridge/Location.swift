@@ -9,7 +9,7 @@ func cl_coordinate_object(_ coordinate: CLLocationCoordinate2D) -> [String: Any]
 }
 
 func cl_location_object(_ location: CLLocation) -> [String: Any] {
-    [
+    var object: [String: Any] = [
         "coordinate": cl_coordinate_object(location.coordinate),
         "altitude": location.altitude,
         "horizontal_accuracy": location.horizontalAccuracy,
@@ -17,7 +17,27 @@ func cl_location_object(_ location: CLLocation) -> [String: Any] {
         "speed": location.speed,
         "course": location.course,
         "timestamp": location.timestamp.timeIntervalSince1970,
+        "ellipsoidal_altitude": NSNull(),
+        "course_accuracy": NSNull(),
+        "speed_accuracy": NSNull(),
+        "floor": cl_optional(location.floor.map(cl_floor_object)),
+        "source_information": NSNull(),
     ]
+
+    if #available(macOS 12.0, *) {
+        object["ellipsoidal_altitude"] = location.ellipsoidalAltitude
+        object["source_information"] = cl_optional(
+            location.sourceInformation.map(cl_source_information_object)
+        )
+    }
+    if #available(macOS 10.15.4, *) {
+        object["course_accuracy"] = location.courseAccuracy
+    }
+    if #available(macOS 10.15, *) {
+        object["speed_accuracy"] = location.speedAccuracy
+    }
+
+    return object
 }
 
 func cl_heading_object(_ heading: CLHeading) -> [String: Any] {
@@ -45,6 +65,9 @@ func cl_region_object(_ region: CLRegion) -> [String: Any] {
         object["major"] = cl_optional(beaconRegion.major?.uint16Value)
         object["minor"] = cl_optional(beaconRegion.minor?.uint16Value)
         object["notify_entry_state_on_display"] = beaconRegion.notifyEntryStateOnDisplay
+        object["beacon_identity_condition"] = cl_beacon_identity_constraint_object(
+            beaconRegion.beaconIdentityConstraint
+        )
     } else if let circularRegion = region as? CLCircularRegion {
         object["kind"] = "circular"
         object["center"] = cl_coordinate_object(circularRegion.center)
@@ -75,161 +98,4 @@ func cl_placemark_object(_ placemark: CLPlacemark) -> [String: Any] {
         "location": cl_optional(placemark.location.map(cl_location_object)),
         "region": cl_optional(placemark.region.map(cl_region_object)),
     ]
-}
-
-@_cdecl("cl_region_json")
-public func cl_region_json(_ regionPtr: UnsafeMutableRawPointer?) -> UnsafeMutablePointer<CChar>? {
-    guard let regionPtr else {
-        return nil
-    }
-
-    let region: CLRegion = cl_borrow(regionPtr)
-    return cl_string(cl_json_string(cl_region_object(region)))
-}
-
-@_cdecl("cl_circular_region_new")
-public func cl_circular_region_new(
-    _ latitude: Double,
-    _ longitude: Double,
-    _ radius: Double,
-    _ identifier: UnsafePointer<CChar>?,
-    _ outRegion: UnsafeMutablePointer<UnsafeMutableRawPointer?>,
-    _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
-) -> Int32 {
-    outRegion.pointee = nil
-    guard let identifier else {
-        cl_write_error(errorOut, "region identifier must not be null")
-        return CL_INVALID_ARGUMENT
-    }
-
-    let region = CLCircularRegion(
-        center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
-        radius: radius,
-        identifier: String(cString: identifier)
-    )
-    outRegion.pointee = cl_retain(region)
-    return CL_OK
-}
-
-private func cl_parse_uuid(
-    _ uuidPtr: UnsafePointer<CChar>?,
-    _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
-) -> UUID? {
-    guard let uuidPtr else {
-        cl_write_error(errorOut, "UUID must not be null")
-        return nil
-    }
-
-    guard let uuid = UUID(uuidString: String(cString: uuidPtr)) else {
-        cl_write_error(errorOut, "invalid beacon UUID string")
-        return nil
-    }
-
-    return uuid
-}
-
-@_cdecl("cl_beacon_region_new_uuid")
-public func cl_beacon_region_new_uuid(
-    _ uuidPtr: UnsafePointer<CChar>?,
-    _ identifierPtr: UnsafePointer<CChar>?,
-    _ outRegion: UnsafeMutablePointer<UnsafeMutableRawPointer?>,
-    _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
-) -> Int32 {
-    outRegion.pointee = nil
-    guard let uuid = cl_parse_uuid(uuidPtr, errorOut), let identifierPtr else {
-        if identifierPtr == nil {
-            cl_write_error(errorOut, "region identifier must not be null")
-        }
-        return CL_INVALID_ARGUMENT
-    }
-
-    let region = CLBeaconRegion(uuid: uuid, identifier: String(cString: identifierPtr))
-    outRegion.pointee = cl_retain(region)
-    return CL_OK
-}
-
-@_cdecl("cl_beacon_region_new_uuid_major")
-public func cl_beacon_region_new_uuid_major(
-    _ uuidPtr: UnsafePointer<CChar>?,
-    _ major: UInt16,
-    _ identifierPtr: UnsafePointer<CChar>?,
-    _ outRegion: UnsafeMutablePointer<UnsafeMutableRawPointer?>,
-    _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
-) -> Int32 {
-    outRegion.pointee = nil
-    guard let uuid = cl_parse_uuid(uuidPtr, errorOut), let identifierPtr else {
-        if identifierPtr == nil {
-            cl_write_error(errorOut, "region identifier must not be null")
-        }
-        return CL_INVALID_ARGUMENT
-    }
-
-    let region = CLBeaconRegion(uuid: uuid, major: major, identifier: String(cString: identifierPtr))
-    outRegion.pointee = cl_retain(region)
-    return CL_OK
-}
-
-@_cdecl("cl_beacon_region_new_uuid_major_minor")
-public func cl_beacon_region_new_uuid_major_minor(
-    _ uuidPtr: UnsafePointer<CChar>?,
-    _ major: UInt16,
-    _ minor: UInt16,
-    _ identifierPtr: UnsafePointer<CChar>?,
-    _ outRegion: UnsafeMutablePointer<UnsafeMutableRawPointer?>,
-    _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
-) -> Int32 {
-    outRegion.pointee = nil
-    guard let uuid = cl_parse_uuid(uuidPtr, errorOut), let identifierPtr else {
-        if identifierPtr == nil {
-            cl_write_error(errorOut, "region identifier must not be null")
-        }
-        return CL_INVALID_ARGUMENT
-    }
-
-    let region = CLBeaconRegion(
-        uuid: uuid,
-        major: major,
-        minor: minor,
-        identifier: String(cString: identifierPtr)
-    )
-    outRegion.pointee = cl_retain(region)
-    return CL_OK
-}
-
-@_cdecl("cl_region_set_notify_on_entry")
-public func cl_region_set_notify_on_entry(_ regionPtr: UnsafeMutableRawPointer?, _ notify: Bool) {
-    guard let regionPtr else { return }
-    let region: CLRegion = cl_borrow(regionPtr)
-    region.notifyOnEntry = notify
-}
-
-@_cdecl("cl_region_set_notify_on_exit")
-public func cl_region_set_notify_on_exit(_ regionPtr: UnsafeMutableRawPointer?, _ notify: Bool) {
-    guard let regionPtr else { return }
-    let region: CLRegion = cl_borrow(regionPtr)
-    region.notifyOnExit = notify
-}
-
-@_cdecl("cl_beacon_region_set_notify_entry_state_on_display")
-public func cl_beacon_region_set_notify_entry_state_on_display(
-    _ regionPtr: UnsafeMutableRawPointer?,
-    _ notify: Bool
-) {
-    guard let regionPtr else { return }
-    let region: CLBeaconRegion = cl_borrow(regionPtr)
-    region.notifyEntryStateOnDisplay = notify
-}
-
-@_cdecl("cl_circular_region_contains_coordinate")
-public func cl_circular_region_contains_coordinate(
-    _ regionPtr: UnsafeMutableRawPointer?,
-    _ latitude: Double,
-    _ longitude: Double
-) -> Bool {
-    guard let regionPtr else {
-        return false
-    }
-
-    let region: CLCircularRegion = cl_borrow(regionPtr)
-    return region.contains(CLLocationCoordinate2D(latitude: latitude, longitude: longitude))
 }

@@ -41,12 +41,30 @@ func cl_optional(_ value: Any?) -> Any {
     value ?? NSNull()
 }
 
+@inline(__always)
+func cl_locale(_ localePtr: UnsafePointer<CChar>?) -> Locale? {
+    guard let localePtr else {
+        return nil
+    }
+    return Locale(identifier: String(cString: localePtr))
+}
+
 func cl_json_safe(_ value: Any) -> Any {
     switch value {
+    case let dict as NSDictionary:
+        var mapped: [String: Any] = [:]
+        for (key, value) in dict {
+            mapped[String(describing: key)] = cl_json_safe(value)
+        }
+        return mapped
     case let dict as [String: Any]:
         return dict.mapValues(cl_json_safe)
+    case let array as NSArray:
+        return array.map(cl_json_safe)
     case let array as [Any]:
         return array.map(cl_json_safe)
+    case let data as Data:
+        return data.base64EncodedString()
     case let number as NSNumber:
         return number
     case let string as String:
