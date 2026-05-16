@@ -194,6 +194,42 @@ extern "C" {
     ) -> i32;
     pub fn cl_beacon_identity_condition_json(condition: *mut c_void) -> *mut c_char;
 
+    pub fn cl_circular_geographic_condition_new(
+        latitude: f64,
+        longitude: f64,
+        radius: f64,
+        out_condition: *mut *mut c_void,
+        error_out: *mut *mut c_char,
+    ) -> i32;
+    pub fn cl_circular_geographic_condition_json(condition: *mut c_void) -> *mut c_char;
+    pub fn cl_monitor_new(
+        name: *const c_char,
+        callback: Option<EventCallback>,
+        user_info: *mut c_void,
+        out_monitor: *mut *mut c_void,
+        error_out: *mut *mut c_char,
+    ) -> i32;
+    pub fn cl_monitor_monitored_identifiers_json(monitor: *mut c_void) -> *mut c_char;
+    pub fn cl_monitor_add_condition(
+        monitor: *mut c_void,
+        condition: *mut c_void,
+        identifier: *const c_char,
+        error_out: *mut *mut c_char,
+    ) -> i32;
+    pub fn cl_monitor_add_condition_assuming_state(
+        monitor: *mut c_void,
+        condition: *mut c_void,
+        identifier: *const c_char,
+        state: i32,
+        error_out: *mut *mut c_char,
+    ) -> i32;
+    pub fn cl_monitor_remove_condition(
+        monitor: *mut c_void,
+        identifier: *const c_char,
+        error_out: *mut *mut c_char,
+    ) -> i32;
+    pub fn cl_monitor_record_json(monitor: *mut c_void, identifier: *const c_char) -> *mut c_char;
+
     pub fn cl_location_updates_supported() -> bool;
     pub fn cl_location_updater_new(
         configuration: i32,

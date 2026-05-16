@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{from_swift, CoreLocationError};
 use crate::ffi;
+use crate::monitor::{private::ConditionSealed, Condition};
 use crate::private::{decode_json, to_cstring};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -84,5 +85,12 @@ impl BeaconIdentityCondition {
 impl Drop for BeaconIdentityCondition {
     fn drop(&mut self) {
         unsafe { ffi::cl_object_release(self.raw) };
+    }
+}
+
+impl ConditionSealed for BeaconIdentityCondition {}
+impl Condition for BeaconIdentityCondition {
+    fn as_raw(&self) -> *mut c_void {
+        self.raw
     }
 }

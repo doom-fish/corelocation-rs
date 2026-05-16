@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1] - 2026-05-16
+
+### Added
+
+- Added `Monitor`, `MonitorConfiguration`, `MonitoringState`, `MonitoringEvent`, `MonitoringRecord`, `CircularGeographicCondition`, and the generic `Condition` trait for the newer named-condition monitoring APIs on macOS 14+.
+- Added `examples/12_monitor_conditions.rs` and `tests/monitor_tests.rs` covering monitor creation, circular conditions, identifiers, and record snapshots.
+- Updated the coverage audit/docs to move the `CLMonitor` / `CLMonitoringEvent` / `CLMonitoringRecord` / `CLMonitorConfiguration` / `CLCircularGeographicCondition` family into the implemented surface.
+
 ## [0.2.0] - 2026-05-16
 
 ### Added

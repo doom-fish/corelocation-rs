@@ -1,6 +1,6 @@
 # corelocation
 
-Safe, idiomatic Rust bindings for Apple's [CoreLocation](https://developer.apple.com/documentation/corelocation) framework — inspect authorization state, work with `CLLocationManager`, monitor circular or beacon regions, read visits and heading updates, geocode addresses, inspect floors, and bridge Swift-refined live location updates on macOS.
+Safe, idiomatic Rust bindings for Apple's [CoreLocation](https://developer.apple.com/documentation/corelocation) framework — inspect authorization state, work with `CLLocationManager`, monitor named conditions, circular or beacon regions, read visits and heading updates, geocode addresses, inspect floors, and bridge Swift-refined live location updates on macOS.
 
 ## Features
 
@@ -8,6 +8,7 @@ Safe, idiomatic Rust bindings for Apple's [CoreLocation](https://developer.apple
 - **Authorization snapshots** — `AuthorizationStatus`, `AccuracyAuthorization`, and `AuthorizationSnapshot` expose the manager's macOS authorization state.
 - **Rich value types** — `Location`, `LocationDetails`, `Heading`, `Visit`, `Floor`, `Placemark`, `Region`, `Beacon`, and `BeaconIdentityConditionSnapshot` mirror the `CoreLocation` SDK surface used by the bridge.
 - **Geofences and beacons** — `CircularRegion`, `BeaconRegion`, and `BeaconIdentityCondition` cover circular monitoring, beacon monitoring, peripheral payload generation, and ranging constraints.
+- **Condition monitors** — `Monitor`, `MonitorConfiguration`, `MonitoringEvent`, `MonitoringRecord`, and `CircularGeographicCondition` bridge the newer named-condition monitoring APIs on macOS 14+.
 - **Geocoding** — `Geocoder` supports forward, reverse, region-scoped, locale-aware, and postal-address geocoding.
 - **Live updates** — `LocationUpdater`, `LocationUpdate`, and `LiveUpdateConfiguration` bridge the Swift-refined `CLLocationUpdate.liveUpdates(_:)` API on macOS 14+.
 
@@ -21,7 +22,7 @@ Safe, idiomatic Rust bindings for Apple's [CoreLocation](https://developer.apple
 
 ```toml
 [dependencies]
-corelocation-rs = "0.2.0"
+corelocation-rs = "0.2.1"
 ```
 
 ```rust,no_run
@@ -44,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Examples
 
-The crate ships with eleven numbered examples covering the requested logical areas:
+The crate ships with twelve numbered examples covering the requested logical areas:
 
 - `01_smoke` — location manager + authorization + geocoder smoke test
 - `02_location_values` — coordinates, distance helpers, and `LocationDetails`
@@ -57,6 +58,7 @@ The crate ships with eleven numbered examples covering the requested logical are
 - `09_visit_monitoring` — visit monitoring controls and `Visit` snapshots
 - `10_location_update_stream` — `LocationUpdater` and `LocationUpdate`
 - `11_beacon_identity_condition` — Swift-refined beacon identity conditions
+- `12_monitor_conditions` — named condition monitors, monitoring records, and circular geographic conditions
 
 Run any example with:
 
@@ -74,14 +76,14 @@ cargo test
 
 ## Coverage audit
 
-See [`COVERAGE.md`](COVERAGE.md) for the v0.2.0 header audit, implemented rows, and deferred framework families.
+See [`COVERAGE.md`](COVERAGE.md) for the v0.2.1 header audit, implemented rows, and remaining deferred framework families.
 
 ## Notes
 
 - `LocationManager` delegate callbacks are delivered on `CoreLocation`'s run-loop thread. CLI programs that want streaming updates should keep a run loop alive (`CFRunLoopRun`, `NSApplication::run`, etc.).
 - `Geocoder` is exposed as a synchronous Rust API using a semaphore-backed bridge around `CoreLocation` completion handlers.
 - `LocationUpdater` mirrors the Swift-refined `CLLocationUpdate.liveUpdates(_:)` API and requires macOS 14.0 or newer.
-- The newer `CLMonitor` / session families are documented in `COVERAGE.md` as deferred follow-up work for a later crate release.
+- `Monitor`, `MonitoringEvent`, and `CircularGeographicCondition` mirror the Swift-refined condition-monitoring APIs and require macOS 14.0 or newer.
 
 ## License
 

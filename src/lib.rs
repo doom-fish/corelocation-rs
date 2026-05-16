@@ -28,6 +28,7 @@ pub mod location;
 pub mod location_manager;
 pub mod location_update;
 pub mod manager;
+pub mod monitor;
 pub mod placemark;
 mod private;
 pub mod region;
@@ -48,6 +49,11 @@ pub use location_update::{
 pub use manager::{
     ActivityType, DeviceOrientation, LocationManager, LocationManagerCallbacks,
     LocationManagerDelegate, LocationManagerErrorInfo,
+};
+pub use monitor::{
+    CircularGeographicCondition, CircularGeographicConditionSnapshot, Condition, ConditionSnapshot,
+    Monitor, MonitorCallbacks, MonitorConfiguration, MonitorDelegate, MonitoringEvent,
+    MonitoringRecord, MonitoringState,
 };
 pub use placemark::Placemark;
 pub use region::{CircularRegion, MonitorableRegion, Region, RegionKind, RegionState};
@@ -74,6 +80,11 @@ pub mod prelude {
     pub use crate::manager::{
         ActivityType, DeviceOrientation, LocationManager, LocationManagerCallbacks,
         LocationManagerDelegate, LocationManagerErrorInfo,
+    };
+    pub use crate::monitor::{
+        CircularGeographicCondition, CircularGeographicConditionSnapshot, Condition,
+        ConditionSnapshot, Monitor, MonitorCallbacks, MonitorConfiguration, MonitorDelegate,
+        MonitoringEvent, MonitoringRecord, MonitoringState,
     };
     pub use crate::placemark::Placemark;
     pub use crate::region::{CircularRegion, MonitorableRegion, Region, RegionKind, RegionState};

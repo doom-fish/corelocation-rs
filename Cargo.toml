@@ -1,11 +1,11 @@
 [package]
 name = "corelocation-rs"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/doom-fish/corelocation-rs"
 repository = "https://github.com/doom-fish/corelocation-rs"
-description = "Safe Rust bindings for Apple's CoreLocation framework — managers, regions, visits, geocoding, floors, and live updates on macOS"
+description = "Safe Rust bindings for Apple's CoreLocation framework — managers, condition monitors, regions, visits, geocoding, floors, and live updates on macOS"
 authors = ["Per Johansson <per@doom.fish>"]
 keywords = ["corelocation", "gps", "geocoding", "macos", "apple"]
 categories = ["api-bindings", "os::macos-apis"]

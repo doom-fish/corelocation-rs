@@ -1,10 +1,10 @@
 # corelocation-rs coverage audit (vs MacOSX26.2.sdk)
 
 SDK_PUBLIC_SYMBOLS: 60
-VERIFIED: 34
-GAPS: 16
+VERIFIED: 41
+GAPS: 9
 EXEMPT: 10
-COVERAGE_PCT: 68.0%
+COVERAGE_PCT: 82.0%
 
 ## Scope notes
 
@@ -43,6 +43,13 @@ COVERAGE_PCT: 68.0%
 | CLRegion | class | CoreLocation/CLRegion.h | `Region`, `MonitorableRegion` |
 | CLCircularRegion | class | CoreLocation/CLCircularRegion.h | `CircularRegion` |
 | CLBeaconIdentityCondition | class | CoreLocation/CLBeaconIdentityCondition.h | `BeaconIdentityCondition`, `BeaconIdentityConditionSnapshot` |
+| CLCondition | class | CoreLocation/CLCondition.h | `Condition`, `ConditionSnapshot` |
+| CLCircularGeographicCondition | class | CoreLocation/CLCircularGeographicCondition.h | `CircularGeographicCondition`, `CircularGeographicConditionSnapshot` |
+| CLMonitorConfiguration | class | CoreLocation/CLMonitorConfiguration.h | `MonitorConfiguration`, `Monitor::with_configuration` |
+| CLMonitoringState | enum | CoreLocation/CLMonitoringEvent.h | `MonitoringState` |
+| CLMonitoringEvent | class | CoreLocation/CLMonitoringEvent.h | `MonitoringEvent`, `MonitorDelegate`, `MonitorCallbacks` |
+| CLMonitoringRecord | class | CoreLocation/CLMonitoringRecord.h | `MonitoringRecord` |
+| CLMonitor | class | CoreLocation/CLMonitor.h | `Monitor` |
 | CLBeaconRegion | class | CoreLocation/CLBeaconRegion.h | `BeaconRegion` |
 | CLBeacon | class | CoreLocation/CLBeaconRegion.h | `Beacon` |
 | kCLHeadingFilterNone | constant | CoreLocation/CLHeading.h | `manager::HEADING_FILTER_NONE` |
@@ -64,14 +71,7 @@ COVERAGE_PCT: 68.0%
 | CLError | enum | CoreLocation/CLError.h | `CoreLocationError` models bridge/runtime failures, not framework error codes. |
 | kCLErrorUserInfoAlternateRegionKey | constant | CoreLocation/CLError.h | No CoreLocation user-info key constants are exposed. |
 | kCLErrorDomain | constant | CoreLocation/CLErrorDomain.h | No NSError domain constant is exposed. |
-| CLCondition | class | CoreLocation/CLCondition.h | No wrapper for the condition base class or generic condition APIs. |
 | CLBeaconIdentityConstraint | class | CoreLocation/CLBeaconIdentityConstraint.h | The crate exposes the newer `BeaconIdentityCondition`, but not this legacy public class. |
-| CLCircularGeographicCondition | class | CoreLocation/CLCircularGeographicCondition.h | No condition-based geofence wrapper exists. |
-| CLMonitor | class | CoreLocation/CLMonitor.h | No named monitor API for condition monitoring/event streams. |
-| CLMonitorConfiguration | class | CoreLocation/CLMonitorConfiguration.h | No configuration builder for `CLMonitor`. |
-| CLMonitoringState | enum | CoreLocation/CLMonitoringEvent.h | No monitoring-state enum is exposed. |
-| CLMonitoringEvent | class | CoreLocation/CLMonitoringEvent.h | No monitoring-event snapshot type is exposed. |
-| CLMonitoringRecord | class | CoreLocation/CLMonitoringRecord.h | No monitoring-record snapshot type is exposed. |
 | CLPlacemark (ContactsAdditions) | category | CoreLocation/CLPlacemark.h | The `postalAddress` property is not surfaced on `Placemark`. |
 
 ## ⏭️ EXEMPT

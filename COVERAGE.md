@@ -1,4 +1,4 @@
-# CoreLocation coverage audit (corelocation-rs v0.2.0)
+# CoreLocation coverage audit (corelocation-rs v0.2.1)
 
 Audited against the macOS SDK headers currently installed via Xcode:
 
@@ -9,6 +9,12 @@ Audited against the macOS SDK headers currently installed via Xcode:
 - `CoreLocation.framework/Headers/CLCircularRegion.h`
 - `CoreLocation.framework/Headers/CLBeaconRegion.h`
 - `CoreLocation.framework/Headers/CLBeaconIdentityCondition.h` (Swift refinement: `CLMonitor.BeaconIdentityCondition`)
+- `CoreLocation.framework/Headers/CLCondition.h`
+- `CoreLocation.framework/Headers/CLCircularGeographicCondition.h` (Swift refinement: `CLMonitor.CircularGeographicCondition`)
+- `CoreLocation.framework/Headers/CLMonitorConfiguration.h`
+- `CoreLocation.framework/Headers/CLMonitoringEvent.h`
+- `CoreLocation.framework/Headers/CLMonitoringRecord.h`
+- `CoreLocation.framework/Headers/CLMonitor.h`
 - `CoreLocation.framework/Headers/CLGeocoder.h`
 - `CoreLocation.framework/Headers/CLHeading.h`
 - `CoreLocation.framework/Headers/CLVisit.h`
@@ -78,6 +84,10 @@ Legend:
 | LocationUpdate | `location`, `stationary`, authorization/location flags | ✅ | `LocationUpdate` snapshot exposed |
 | BeaconIdentityCondition | UUID/major/minor initializers | ✅ | `BeaconIdentityCondition` wrapper exposed |
 | BeaconIdentityCondition | UUID/major/minor snapshot access | ✅ | `snapshot()` helper exposed |
+| ConditionMonitor | `CLCondition` existential bridging | ✅ | `Condition` trait + `ConditionSnapshot` |
+| ConditionMonitor | `CLMonitor.CircularGeographicCondition` | ✅ | `CircularGeographicCondition` + snapshot |
+| ConditionMonitor | `CLMonitor.init(_:)`, `identifiers`, `record(for:)`, `add/remove` | ✅ | `Monitor`, `MonitorConfiguration`, `MonitoringRecord` |
+| ConditionMonitor | `CLMonitor.Events` / `CLMonitor.Event.State` | ✅ | `MonitorDelegate`, `MonitorCallbacks`, `MonitoringEvent`, `MonitoringState` |
 
 ## Deprecated / unavailable / entitlement-only rows
 
@@ -97,11 +107,10 @@ Legend:
 
 | Family | Status | Reason |
 | --- | --- | --- |
-| `CLMonitor`, `CLMonitoringEvent`, `CLMonitoringRecord`, `CLMonitorConfiguration`, `CLCircularGeographicCondition` | 🟡 | Newer monitor/condition APIs are not part of the requested v0.2.0 logical-area split |
 | `CLBackgroundActivitySession` | 🟡 | Requires a separate session-lifecycle API surface |
 | `CLServiceSession` | 🟡 | Requires a separate service-session API surface |
 | `CLLocationPushServiceExtension` / `CLLocationPushServiceError` | 🟡 | Extension-only / push-entitlement workflow not targeted in this crate release |
 
 ## Summary
 
-`corelocation-rs` v0.2.0 covers the requested logical areas for location management, value snapshots, region/beacon monitoring, authorization, visits, geocoding, floors, and Swift-refined live updates on macOS. The remaining deferred work is isolated to the newer monitor/session families that sit outside the requested scope for this release.
+`corelocation-rs` v0.2.1 covers the requested logical areas for location management, value snapshots, region/beacon monitoring, named condition monitoring, authorization, visits, geocoding, floors, and Swift-refined live updates on macOS. The remaining deferred work is isolated to the session families and a few smaller legacy/error helpers tracked in `COVERAGE_AUDIT.md`.
