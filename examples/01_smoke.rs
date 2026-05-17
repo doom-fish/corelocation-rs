@@ -11,6 +11,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "location_services_enabled = {}",
         LocationManager::location_services_enabled()
     );
+    println!("corelocation_error_domain = {}", corelocation::error::error_domain());
+    println!(
+        "alternate_region_key = {}",
+        corelocation::error::alternate_region_key()
+    );
 
     let geocoder = Geocoder::new()?;
     match geocoder.geocode_address_string("Apple Park, Cupertino") {

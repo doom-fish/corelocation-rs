@@ -1,7 +1,7 @@
 use corelocation::prelude::*;
 
 #[test]
-fn beacon_identity_condition_snapshot_smoke() -> Result<(), Box<dyn std::error::Error>> {
+fn beacon_identity_condition_and_constraint_snapshot_smoke() -> Result<(), Box<dyn std::error::Error>> {
     match BeaconIdentityCondition::with_major_minor("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE", 1, 2) {
         Ok(condition) => {
             let snapshot = condition.snapshot()?;
@@ -12,5 +12,14 @@ fn beacon_identity_condition_snapshot_smoke() -> Result<(), Box<dyn std::error::
             println!("beacon identity condition unavailable: {error}");
         }
     }
+
+    let constraint = BeaconIdentityConstraint::with_major_minor(
+        "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
+        1,
+        2,
+    )?;
+    let snapshot = constraint.snapshot()?;
+    assert_eq!(snapshot.major, Some(1));
+    assert_eq!(snapshot.minor, Some(2));
     Ok(())
 }

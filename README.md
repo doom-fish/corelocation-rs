@@ -6,10 +6,11 @@ Safe, idiomatic Rust bindings for Apple's [CoreLocation](https://developer.apple
 
 - **Location manager control** — `LocationManager` covers desired accuracy, distance filters, activity type, heading configuration, significant-change monitoring, visit monitoring, beacon ranging, region monitoring, and temporary full-accuracy requests.
 - **Authorization snapshots** — `AuthorizationStatus`, `AccuracyAuthorization`, and `AuthorizationSnapshot` expose the manager's macOS authorization state.
-- **Rich value types** — `Location`, `LocationDetails`, `Heading`, `Visit`, `Floor`, `Placemark`, `Region`, `Beacon`, and `BeaconIdentityConditionSnapshot` mirror the `CoreLocation` SDK surface used by the bridge.
-- **Geofences and beacons** — `CircularRegion`, `BeaconRegion`, and `BeaconIdentityCondition` cover circular monitoring, beacon monitoring, peripheral payload generation, and ranging constraints.
+- **Rich value types** — `Location`, `LocationDetails`, `Heading`, `Visit`, `Floor`, `Placemark`, `Region`, `Beacon`, `BeaconIdentityConditionSnapshot`, and `BeaconIdentityConstraintSnapshot` mirror the `CoreLocation` SDK surface used by the bridge.
+- **Geofences and beacons** — `CircularRegion`, `BeaconRegion`, `BeaconIdentityCondition`, and `BeaconIdentityConstraint` cover circular monitoring, beacon monitoring, legacy constraint-based region construction, peripheral payload generation, and ranging constraints.
 - **Condition monitors** — `Monitor`, `MonitorConfiguration`, `MonitoringEvent`, `MonitoringRecord`, and `CircularGeographicCondition` bridge the newer named-condition monitoring APIs on macOS 14+.
-- **Geocoding** — `Geocoder` supports forward, reverse, region-scoped, locale-aware, and postal-address geocoding.
+- **Geocoding** — `Geocoder` supports forward, reverse, region-scoped, locale-aware, and postal-address geocoding, while `Placemark` now includes `postal_address` snapshots.
+- **Framework constants and errors** — location sentinel helpers plus `CLErrorCode`, `error::error_domain()`, and `error::alternate_region_key()` cover the remaining public macOS `CoreLocation` constants.
 - **Live updates** — `LocationUpdater`, `LocationUpdate`, and `LiveUpdateConfiguration` bridge the Swift-refined `CLLocationUpdate.liveUpdates(_:)` API on macOS 14+.
 
 ## Requirements
@@ -22,7 +23,7 @@ Safe, idiomatic Rust bindings for Apple's [CoreLocation](https://developer.apple
 
 ```toml
 [dependencies]
-corelocation-rs = "0.2.1"
+corelocation-rs = "0.2.2"
 ```
 
 ```rust,no_run
@@ -48,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 The crate ships with twelve numbered examples covering the requested logical areas:
 
 - `01_smoke` — location manager + authorization + geocoder smoke test
-- `02_location_values` — coordinates, distance helpers, and `LocationDetails`
+- `02_location_values` — coordinates, sentinel constants, distance helpers, and `LocationDetails`
 - `03_region_monitoring` — circular regions and region snapshots
 - `04_beacon_region` — beacon regions, conditions, and peripheral payload summaries
 - `05_heading_configuration` — heading filters and device orientation
@@ -57,7 +58,7 @@ The crate ships with twelve numbered examples covering the requested logical are
 - `08_authorization_snapshot` — manager/global authorization inspection
 - `09_visit_monitoring` — visit monitoring controls and `Visit` snapshots
 - `10_location_update_stream` — `LocationUpdater` and `LocationUpdate`
-- `11_beacon_identity_condition` — Swift-refined beacon identity conditions
+- `11_beacon_identity_condition` — Swift-refined beacon identity conditions and the legacy `CLBeaconIdentityConstraint` wrapper
 - `12_monitor_conditions` — named condition monitors, monitoring records, and circular geographic conditions
 
 Run any example with:
@@ -76,7 +77,7 @@ cargo test
 
 ## Coverage audit
 
-See [`COVERAGE.md`](COVERAGE.md) for the v0.2.1 header audit, implemented rows, and remaining deferred framework families.
+See [`COVERAGE.md`](COVERAGE.md) for the v0.2.2 header audit, implemented rows, and the remaining deprecated or unavailable framework families.
 
 ## Notes
 

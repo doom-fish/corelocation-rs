@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use crate::authorization::{AccuracyAuthorization, AuthorizationSnapshot, AuthorizationStatus};
 use crate::beacon_identity_condition::{BeaconIdentityCondition, BeaconIdentityConditionSnapshot};
-use crate::error::{from_swift, CoreLocationError};
+use crate::error::{alternate_region_key, error_domain, from_swift, CLErrorCode, CoreLocationError};
 use crate::ffi;
 use crate::location::{Location, LocationDetails};
 use crate::private::{decode_json, decode_optional_json, to_cstring};
@@ -22,6 +22,15 @@ pub const LOCATION_ACCURACY_NEAREST_TEN_METERS: f64 = 10.0;
 pub const LOCATION_ACCURACY_HUNDRED_METERS: f64 = 100.0;
 pub const LOCATION_ACCURACY_KILOMETER: f64 = 1_000.0;
 pub const LOCATION_ACCURACY_THREE_KILOMETERS: f64 = 3_000.0;
+
+#[must_use]
+pub fn location_accuracy_reduced() -> Option<f64> {
+    if unsafe { ffi::cl_location_accuracy_reduced_available() } {
+        Some(unsafe { ffi::cl_location_accuracy_reduced() })
+    } else {
+        None
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[repr(i32)]
@@ -78,6 +87,26 @@ pub struct LocationManagerErrorInfo {
     pub domain: String,
     pub code: i32,
     pub message: String,
+}
+
+impl LocationManagerErrorInfo {
+    #[must_use]
+    pub fn error_code(&self) -> Option<CLErrorCode> {
+        if self.domain == error_domain() {
+            CLErrorCode::from_raw(self.code)
+        } else {
+            None
+        }
+    }
+
+    #[must_use]
+    pub fn alternate_region_key(&self) -> Option<&'static str> {
+        if self.domain == error_domain() && self.error_code() == Some(CLErrorCode::RegionMonitoringResponseDelayed) {
+            Some(alternate_region_key())
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Deserialize)]

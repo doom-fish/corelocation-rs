@@ -121,6 +121,31 @@ public func cl_beacon_region_new_condition(
     return CL_OK
 }
 
+@_cdecl("cl_beacon_region_new_constraint")
+public func cl_beacon_region_new_constraint(
+    _ constraintPtr: UnsafeMutableRawPointer?,
+    _ identifierPtr: UnsafePointer<CChar>?,
+    _ outRegion: UnsafeMutablePointer<UnsafeMutableRawPointer?>,
+    _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+) -> Int32 {
+    outRegion.pointee = nil
+    guard let identifierPtr else {
+        cl_write_error(errorOut, "region identifier must not be null")
+        return CL_INVALID_ARGUMENT
+    }
+    guard let constraint = cl_beacon_identity_constraint_box(constraintPtr)?.constraint else {
+        cl_write_error(errorOut, "beacon identity constraint must not be null")
+        return CL_INVALID_ARGUMENT
+    }
+
+    let region = CLBeaconRegion(
+        beaconIdentityConstraint: constraint,
+        identifier: String(cString: identifierPtr)
+    )
+    outRegion.pointee = cl_retain(region)
+    return CL_OK
+}
+
 @_cdecl("cl_beacon_region_condition_json")
 public func cl_beacon_region_condition_json(
     _ regionPtr: UnsafeMutableRawPointer?

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::ffi;
 use crate::floor::{Floor, LocationSourceInformation};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -24,6 +25,24 @@ impl Coordinate {
             && (-90.0..=90.0).contains(&self.latitude)
             && (-180.0..=180.0).contains(&self.longitude)
     }
+}
+
+#[must_use]
+pub fn distance_max() -> f64 {
+    unsafe { ffi::cl_location_distance_max() }
+}
+
+#[must_use]
+pub fn time_interval_max() -> f64 {
+    unsafe { ffi::cl_time_interval_max() }
+}
+
+#[must_use]
+pub fn invalid_coordinate() -> Coordinate {
+    Coordinate::new(
+        unsafe { ffi::cl_location_coordinate_2d_invalid_latitude() },
+        unsafe { ffi::cl_location_coordinate_2d_invalid_longitude() },
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

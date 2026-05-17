@@ -18,6 +18,7 @@
 
 pub mod authorization;
 pub mod beacon_identity_condition;
+pub mod beacon_identity_constraint;
 pub mod beacon_region;
 pub mod error;
 pub mod ffi;
@@ -36,8 +37,11 @@ pub mod visit;
 
 pub use authorization::{AccuracyAuthorization, AuthorizationSnapshot, AuthorizationStatus};
 pub use beacon_identity_condition::{BeaconIdentityCondition, BeaconIdentityConditionSnapshot};
+pub use beacon_identity_constraint::{
+    BeaconIdentityConstraint, BeaconIdentityConstraintSnapshot,
+};
 pub use beacon_region::{Beacon, BeaconRegion, Proximity};
-pub use error::CoreLocationError;
+pub use error::{CLErrorCode, CoreLocationError};
 pub use floor::{Floor, LocationSourceInformation};
 pub use geocoder::{Geocoder, PostalAddress};
 pub use heading::Heading;
@@ -67,8 +71,11 @@ pub mod prelude {
     pub use crate::beacon_identity_condition::{
         BeaconIdentityCondition, BeaconIdentityConditionSnapshot,
     };
+    pub use crate::beacon_identity_constraint::{
+        BeaconIdentityConstraint, BeaconIdentityConstraintSnapshot,
+    };
     pub use crate::beacon_region::{Beacon, BeaconRegion, Proximity};
-    pub use crate::error::CoreLocationError;
+    pub use crate::error::{CLErrorCode, CoreLocationError};
     pub use crate::floor::{Floor, LocationSourceInformation};
     pub use crate::geocoder::{Geocoder, PostalAddress};
     pub use crate::heading::Heading;

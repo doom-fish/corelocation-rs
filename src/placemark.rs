@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::geocoder::PostalAddress;
 use crate::{Location, Region};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -14,6 +15,7 @@ pub struct Placemark {
     pub postal_code: Option<String>,
     pub iso_country_code: Option<String>,
     pub country: Option<String>,
+    pub postal_address: Option<PostalAddress>,
     pub inland_water: Option<String>,
     pub ocean: Option<String>,
     #[serde(default)]

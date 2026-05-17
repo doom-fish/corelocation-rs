@@ -1,5 +1,6 @@
 use core::ffi::c_char;
 use core::fmt;
+use std::sync::OnceLock;
 
 use libc::free;
 
@@ -12,6 +13,74 @@ pub enum CoreLocationError {
     FrameworkError(String),
     TimedOut(String),
     Unknown { code: i32, message: String },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(i32)]
+pub enum CLErrorCode {
+    LocationUnknown = 0,
+    Denied = 1,
+    Network = 2,
+    HeadingFailure = 3,
+    RegionMonitoringDenied = 4,
+    RegionMonitoringFailure = 5,
+    RegionMonitoringSetupDelayed = 6,
+    RegionMonitoringResponseDelayed = 7,
+    GeocodeFoundNoResult = 8,
+    GeocodeFoundPartialResult = 9,
+    GeocodeCanceled = 10,
+    DeferredFailed = 11,
+    DeferredNotUpdatingLocation = 12,
+    DeferredAccuracyTooLow = 13,
+    DeferredDistanceFiltered = 14,
+    DeferredCanceled = 15,
+    RangingUnavailable = 16,
+    RangingFailure = 17,
+    PromptDeclined = 18,
+    HistoricalLocationError = 19,
+}
+
+impl CLErrorCode {
+    #[must_use]
+    pub const fn from_raw(raw: i32) -> Option<Self> {
+        match raw {
+            0 => Some(Self::LocationUnknown),
+            1 => Some(Self::Denied),
+            2 => Some(Self::Network),
+            3 => Some(Self::HeadingFailure),
+            4 => Some(Self::RegionMonitoringDenied),
+            5 => Some(Self::RegionMonitoringFailure),
+            6 => Some(Self::RegionMonitoringSetupDelayed),
+            7 => Some(Self::RegionMonitoringResponseDelayed),
+            8 => Some(Self::GeocodeFoundNoResult),
+            9 => Some(Self::GeocodeFoundPartialResult),
+            10 => Some(Self::GeocodeCanceled),
+            11 => Some(Self::DeferredFailed),
+            12 => Some(Self::DeferredNotUpdatingLocation),
+            13 => Some(Self::DeferredAccuracyTooLow),
+            14 => Some(Self::DeferredDistanceFiltered),
+            15 => Some(Self::DeferredCanceled),
+            16 => Some(Self::RangingUnavailable),
+            17 => Some(Self::RangingFailure),
+            18 => Some(Self::PromptDeclined),
+            19 => Some(Self::HistoricalLocationError),
+            _ => None,
+        }
+    }
+}
+
+impl TryFrom<i32> for CLErrorCode {
+    type Error = i32;
+
+    fn try_from(raw: i32) -> Result<Self, Self::Error> {
+        Self::from_raw(raw).ok_or(raw)
+    }
+}
+
+impl From<CLErrorCode> for i32 {
+    fn from(code: CLErrorCode) -> Self {
+        code as Self
+    }
 }
 
 impl CoreLocationError {
@@ -43,6 +112,25 @@ impl fmt::Display for CoreLocationError {
 }
 
 impl std::error::Error for CoreLocationError {}
+
+static ERROR_DOMAIN: OnceLock<String> = OnceLock::new();
+static ALTERNATE_REGION_KEY: OnceLock<String> = OnceLock::new();
+
+#[must_use]
+pub fn error_domain() -> &'static str {
+    ERROR_DOMAIN
+        .get_or_init(|| take_owned_c_string(unsafe { ffi::cl_error_domain() }))
+        .as_str()
+}
+
+#[must_use]
+pub fn alternate_region_key() -> &'static str {
+    ALTERNATE_REGION_KEY
+        .get_or_init(|| take_owned_c_string(unsafe {
+            ffi::cl_error_user_info_alternate_region_key()
+        }))
+        .as_str()
+}
 
 pub(crate) fn take_owned_c_string(ptr: *mut c_char) -> String {
     if ptr.is_null() {

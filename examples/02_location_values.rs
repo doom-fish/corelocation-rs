@@ -19,5 +19,15 @@ fn main() {
 
     println!("apple_park_valid = {}", apple_park.coordinate.is_valid());
     println!("distance_m = {distance_m:.0}");
+    println!("distance_max = {}", corelocation::location::distance_max());
+    println!("time_interval_max = {}", corelocation::location::time_interval_max());
+    println!(
+        "invalid_coordinate_valid = {}",
+        corelocation::location::invalid_coordinate().is_valid()
+    );
+    println!(
+        "location_accuracy_reduced = {:?}",
+        corelocation::manager::location_accuracy_reduced()
+    );
     println!("detailed_location = {detailed:?}");
 }

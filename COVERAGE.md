@@ -1,4 +1,4 @@
-# CoreLocation coverage audit (corelocation-rs v0.2.1)
+# CoreLocation coverage audit (corelocation-rs v0.2.2)
 
 Audited against the macOS SDK headers currently installed via Xcode:
 
@@ -61,11 +61,12 @@ Legend:
 | Location | `Coordinate`, base `CLLocation` snapshot fields | ✅ | Existing `Location` preserved |
 | Location | `ellipsoidalAltitude`, `courseAccuracy`, `speedAccuracy`, `floor`, `sourceInformation` | ✅ | `LocationDetails` adds the extended fields |
 | Location | `distanceFromLocation:` equivalent | ✅ | `Location::distance_to` convenience helper |
+| Location | reduced-accuracy + distance/time/invalid sentinels | ✅ | `manager::location_accuracy_reduced`, `location::distance_max`, `location::time_interval_max`, `location::invalid_coordinate` |
 | Region | `RegionState` enum | ✅ | `RegionState` exposed |
 | Region | `identifier`, `notifyOnEntry`, `notifyOnExit` | ✅ | Included in `Region` snapshot |
 | Region | `CLCircularRegion` construction and `containsCoordinate` | ✅ | `CircularRegion` wrapper exposed |
 | BeaconRegion | UUID / major / minor constructors | ✅ | Exposed directly |
-| BeaconRegion | `initWithBeaconIdentityConstraint:identifier:` equivalent | ✅ | `BeaconRegion::from_condition` |
+| BeaconRegion | `initWithBeaconIdentityConstraint:identifier:` equivalent | ✅ | `BeaconRegion::from_condition`, `BeaconRegion::from_constraint` |
 | BeaconRegion | `beaconIdentityConstraint`, `UUID`, `major`, `minor` | ✅ | `beacon_identity_condition()` snapshot helper |
 | BeaconRegion | `notifyEntryStateOnDisplay` | ✅ | Setter exposed |
 | BeaconRegion | `peripheralDataWithMeasuredPower:` | ✅ | JSON summary helper exposed |
@@ -76,14 +77,17 @@ Legend:
 | Geocoder | `geocodeAddressString:inRegion:` | ✅ | Region-scoped helper added |
 | Geocoder | `geocodeAddressString:inRegion:preferredLocale:` | ✅ | Region+locale helper added |
 | Geocoder | `geocodePostalAddress` + preferred locale variant | ✅ | `PostalAddress` Rust type + bridge added |
+| Geocoder | `CLPlacemark.postalAddress` | ✅ | `Placemark.postal_address` |
 | Floor | `CLFloor.level` | ✅ | `Floor` snapshot exposed |
 | Authorization | Status + accuracy enums and manager snapshot | ✅ | Dedicated `authorization` module added |
+| Error | `CLError`, `kCLErrorDomain`, `kCLErrorUserInfoAlternateRegionKey` | ✅ | `CLErrorCode`, `error::error_domain`, `error::alternate_region_key`, `LocationManagerErrorInfo::error_code` |
 | Visit | `arrivalDate`, `departureDate`, `coordinate`, `horizontalAccuracy` | ✅ | `Visit` snapshot exposed |
 | LocationUpdate | `CLLocationUpdate.LiveConfiguration` | ✅ | `LiveUpdateConfiguration` enum exposed |
 | LocationUpdate | `CLLocationUpdate.liveUpdates(_:)` | ✅ | `LocationUpdater` async bridge exposed |
 | LocationUpdate | `location`, `stationary`, authorization/location flags | ✅ | `LocationUpdate` snapshot exposed |
 | BeaconIdentityCondition | UUID/major/minor initializers | ✅ | `BeaconIdentityCondition` wrapper exposed |
 | BeaconIdentityCondition | UUID/major/minor snapshot access | ✅ | `snapshot()` helper exposed |
+| BeaconIdentityConstraint | legacy UUID/major/minor initializers | ✅ | `BeaconIdentityConstraint` wrapper exposed |
 | ConditionMonitor | `CLCondition` existential bridging | ✅ | `Condition` trait + `ConditionSnapshot` |
 | ConditionMonitor | `CLMonitor.CircularGeographicCondition` | ✅ | `CircularGeographicCondition` + snapshot |
 | ConditionMonitor | `CLMonitor.init(_:)`, `identifiers`, `record(for:)`, `add/remove` | ✅ | `Monitor`, `MonitorConfiguration`, `MonitoringRecord` |
@@ -99,7 +103,6 @@ Legend:
 | `CLLocationManager.requestHistoricalLocations*` | ⏭️ | watchOS-only and entitlement-gated |
 | `CLRegion` deprecated circular APIs (`initCircularRegion*`, `center`, `radius`, `containsCoordinate`) | ⏭️ | Deprecated in favor of `CLCircularRegion` |
 | `CLBeaconRegion` `proximityUUID` initializers / accessors | ⏭️ | Deprecated in favor of UUID-based APIs |
-| `CLBeaconIdentityConstraint` as a public top-level Rust wrapper | ⏭️ | Deprecated wrapper; crate uses `BeaconIdentityCondition` while bridging through the constraint where needed |
 | `CLGeocoder.geocodeAddressDictionary` | ⏭️ | Deprecated and unavailable on modern macOS workflows |
 | `CLAuthorizationStatusAuthorizedWhenInUse` on macOS | ⏭️ | Header marks it unavailable on macOS |
 
@@ -113,4 +116,4 @@ Legend:
 
 ## Summary
 
-`corelocation-rs` v0.2.1 covers the requested logical areas for location management, value snapshots, region/beacon monitoring, named condition monitoring, authorization, visits, geocoding, floors, and Swift-refined live updates on macOS. The remaining deferred work is isolated to the session families and a few smaller legacy/error helpers tracked in `COVERAGE_AUDIT.md`.
+`corelocation-rs` v0.2.2 now covers 100% of the in-scope public macOS CoreLocation surface audited in `COVERAGE_AUDIT.md`, including the remaining location sentinel constants, CoreLocation error helpers, the legacy `CLBeaconIdentityConstraint`, and `CLPlacemark.postalAddress`. The only deferred work left is the SDK surface that Apple already marks deprecated, entitlement-only, or unavailable on macOS.

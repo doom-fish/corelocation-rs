@@ -1,3 +1,4 @@
+import Contacts
 import CoreLocation
 import Foundation
 
@@ -5,6 +6,25 @@ func cl_coordinate_object(_ coordinate: CLLocationCoordinate2D) -> [String: Any]
     [
         "latitude": coordinate.latitude,
         "longitude": coordinate.longitude,
+    ]
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
+    }
+}
+
+func cl_postal_address_object(_ postalAddress: CNPostalAddress) -> [String: Any] {
+    [
+        "street": cl_optional(postalAddress.street.nilIfEmpty),
+        "city": cl_optional(postalAddress.city.nilIfEmpty),
+        "state": cl_optional(postalAddress.state.nilIfEmpty),
+        "postal_code": cl_optional(postalAddress.postalCode.nilIfEmpty),
+        "country": cl_optional(postalAddress.country.nilIfEmpty),
+        "iso_country_code": cl_optional(postalAddress.isoCountryCode.nilIfEmpty),
+        "sub_administrative_area": cl_optional(postalAddress.subAdministrativeArea.nilIfEmpty),
+        "sub_locality": cl_optional(postalAddress.subLocality.nilIfEmpty),
     ]
 }
 
@@ -38,6 +58,42 @@ func cl_location_object(_ location: CLLocation) -> [String: Any] {
     }
 
     return object
+}
+
+@_cdecl("cl_location_accuracy_reduced_available")
+public func cl_location_accuracy_reduced_available() -> Bool {
+    if #available(macOS 11.0, *) {
+        return true
+    }
+    return false
+}
+
+@_cdecl("cl_location_accuracy_reduced")
+public func cl_location_accuracy_reduced() -> Double {
+    if #available(macOS 11.0, *) {
+        return kCLLocationAccuracyReduced
+    }
+    return 0
+}
+
+@_cdecl("cl_location_distance_max")
+public func cl_location_distance_max() -> Double {
+    CLLocationDistanceMax
+}
+
+@_cdecl("cl_time_interval_max")
+public func cl_time_interval_max() -> Double {
+    CLTimeIntervalMax
+}
+
+@_cdecl("cl_location_coordinate_2d_invalid_latitude")
+public func cl_location_coordinate_2d_invalid_latitude() -> Double {
+    kCLLocationCoordinate2DInvalid.latitude
+}
+
+@_cdecl("cl_location_coordinate_2d_invalid_longitude")
+public func cl_location_coordinate_2d_invalid_longitude() -> Double {
+    kCLLocationCoordinate2DInvalid.longitude
 }
 
 func cl_heading_object(_ heading: CLHeading) -> [String: Any] {
@@ -91,6 +147,7 @@ func cl_placemark_object(_ placemark: CLPlacemark) -> [String: Any] {
         "postal_code": cl_optional(placemark.postalCode),
         "iso_country_code": cl_optional(placemark.isoCountryCode),
         "country": cl_optional(placemark.country),
+        "postal_address": cl_optional(placemark.postalAddress.map(cl_postal_address_object)),
         "inland_water": cl_optional(placemark.inlandWater),
         "ocean": cl_optional(placemark.ocean),
         "areas_of_interest": cl_optional(placemark.areasOfInterest),

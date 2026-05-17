@@ -19,7 +19,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     match geocoder.geocode_address_string_in_region("Apple Park", Some(&region)) {
-        Ok(placemarks) => println!("regional_geocode_count = {}", placemarks.len()),
+        Ok(placemarks) => {
+            println!("regional_geocode_count = {}", placemarks.len());
+            if let Some(first) = placemarks.first() {
+                println!("regional_geocode_postal_address = {:?}", first.postal_address);
+            }
+        }
         Err(error) => println!("regional geocode skipped: {error}"),
     }
 

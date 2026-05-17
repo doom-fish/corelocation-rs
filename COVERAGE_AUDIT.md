@@ -1,10 +1,10 @@
 # corelocation-rs coverage audit (vs MacOSX26.2.sdk)
 
 SDK_PUBLIC_SYMBOLS: 60
-VERIFIED: 41
-GAPS: 9
+VERIFIED: 50
+GAPS: 0
 EXEMPT: 10
-COVERAGE_PCT: 82.0%
+COVERAGE_PCT: 100.0%
 
 ## Scope notes
 
@@ -26,6 +26,10 @@ COVERAGE_PCT: 82.0%
 | kCLLocationAccuracyHundredMeters | constant | _LocationEssentials/CLLocationEssentials.h | `manager::LOCATION_ACCURACY_HUNDRED_METERS` |
 | kCLLocationAccuracyKilometer | constant | _LocationEssentials/CLLocationEssentials.h | `manager::LOCATION_ACCURACY_KILOMETER` |
 | kCLLocationAccuracyThreeKilometers | constant | _LocationEssentials/CLLocationEssentials.h | `manager::LOCATION_ACCURACY_THREE_KILOMETERS` |
+| kCLLocationAccuracyReduced | constant | _LocationEssentials/CLLocationEssentials.h | `manager::location_accuracy_reduced` |
+| CLLocationDistanceMax | constant | _LocationEssentials/CLLocationEssentials.h | `location::distance_max` |
+| CLTimeIntervalMax | constant | _LocationEssentials/CLLocationEssentials.h | `location::time_interval_max` |
+| kCLLocationCoordinate2DInvalid | constant | _LocationEssentials/CLLocationEssentials.h | `location::invalid_coordinate` |
 | CLLocationCoordinate2DIsValid | function | _LocationEssentials/CLLocationEssentials.h | `Coordinate::is_valid` |
 | CLLocationCoordinate2DMake | function | _LocationEssentials/CLLocationEssentials.h | `Coordinate::new` |
 | CLFloor | class | _LocationEssentials/CLLocationEssentials.h | `Floor` |
@@ -50,11 +54,16 @@ COVERAGE_PCT: 82.0%
 | CLMonitoringEvent | class | CoreLocation/CLMonitoringEvent.h | `MonitoringEvent`, `MonitorDelegate`, `MonitorCallbacks` |
 | CLMonitoringRecord | class | CoreLocation/CLMonitoringRecord.h | `MonitoringRecord` |
 | CLMonitor | class | CoreLocation/CLMonitor.h | `Monitor` |
-| CLBeaconRegion | class | CoreLocation/CLBeaconRegion.h | `BeaconRegion` |
+| CLBeaconRegion | class | CoreLocation/CLBeaconRegion.h | `BeaconRegion`, `BeaconRegion::from_constraint` |
 | CLBeacon | class | CoreLocation/CLBeaconRegion.h | `Beacon` |
+| CLBeaconIdentityConstraint | class | CoreLocation/CLBeaconIdentityConstraint.h | `BeaconIdentityConstraint`, `BeaconRegion::from_constraint` |
+| CLError | enum | CoreLocation/CLError.h | `CLErrorCode`, `LocationManagerErrorInfo::error_code` |
+| kCLErrorUserInfoAlternateRegionKey | constant | CoreLocation/CLError.h | `error::alternate_region_key`, `LocationManagerErrorInfo::alternate_region_key` |
+| kCLErrorDomain | constant | CoreLocation/CLErrorDomain.h | `error::error_domain` |
 | kCLHeadingFilterNone | constant | CoreLocation/CLHeading.h | `manager::HEADING_FILTER_NONE` |
 | CLHeading | class | CoreLocation/CLHeading.h | `Heading` |
 | CLPlacemark | class | CoreLocation/CLPlacemark.h | `Placemark` |
+| CLPlacemark (ContactsAdditions) | category | CoreLocation/CLPlacemark.h | `Placemark.postal_address` |
 | CLVisit | class | CoreLocation/CLVisit.h | `Visit` |
 | CLLiveUpdateConfiguration | enum | CoreLocation/CLLocationUpdater.h | `LiveUpdateConfiguration` |
 | CLUpdate | class | CoreLocation/CLLocationUpdater.h | `LocationUpdate` via Swift overlay `CLLocationUpdate` |
@@ -62,17 +71,7 @@ COVERAGE_PCT: 82.0%
 
 ## 🔴 GAPS
 
-| Symbol | Kind | Header | Notes |
-| --- | --- | --- | --- |
-| kCLLocationAccuracyReduced | constant | _LocationEssentials/CLLocationEssentials.h | No named reduced-accuracy constant is re-exported. |
-| CLLocationDistanceMax | constant | _LocationEssentials/CLLocationEssentials.h | No max-distance sentinel constant is exposed. |
-| CLTimeIntervalMax | constant | _LocationEssentials/CLLocationEssentials.h | No max-time sentinel constant is exposed. |
-| kCLLocationCoordinate2DInvalid | constant | _LocationEssentials/CLLocationEssentials.h | No invalid-coordinate sentinel constant is exposed. |
-| CLError | enum | CoreLocation/CLError.h | `CoreLocationError` models bridge/runtime failures, not framework error codes. |
-| kCLErrorUserInfoAlternateRegionKey | constant | CoreLocation/CLError.h | No CoreLocation user-info key constants are exposed. |
-| kCLErrorDomain | constant | CoreLocation/CLErrorDomain.h | No NSError domain constant is exposed. |
-| CLBeaconIdentityConstraint | class | CoreLocation/CLBeaconIdentityConstraint.h | The crate exposes the newer `BeaconIdentityCondition`, but not this legacy public class. |
-| CLPlacemark (ContactsAdditions) | category | CoreLocation/CLPlacemark.h | The `postalAddress` property is not surfaced on `Placemark`. |
+None.
 
 ## ⏭️ EXEMPT
 

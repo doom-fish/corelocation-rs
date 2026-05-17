@@ -5,6 +5,7 @@ use serde_json::Value;
 
 pub use crate::authorization::AuthorizationStatus;
 use crate::beacon_identity_condition::{BeaconIdentityCondition, BeaconIdentityConditionSnapshot};
+use crate::beacon_identity_constraint::BeaconIdentityConstraint;
 use crate::error::{from_swift, CoreLocationError};
 use crate::ffi;
 use crate::location::Coordinate;
@@ -220,6 +221,28 @@ impl BeaconRegion {
         let status = unsafe {
             ffi::cl_beacon_region_new_condition(
                 condition.as_raw(),
+                identifier.as_ptr(),
+                &mut raw,
+                &mut error,
+            )
+        };
+        if status == ffi::status::OK {
+            Ok(Self { raw })
+        } else {
+            Err(from_swift(status, error))
+        }
+    }
+
+    pub fn from_constraint(
+        constraint: &BeaconIdentityConstraint,
+        identifier: &str,
+    ) -> Result<Self, CoreLocationError> {
+        let identifier = to_cstring(identifier)?;
+        let mut raw = core::ptr::null_mut();
+        let mut error = core::ptr::null_mut();
+        let status = unsafe {
+            ffi::cl_beacon_region_new_constraint(
+                constraint.as_raw(),
                 identifier.as_ptr(),
                 &mut raw,
                 &mut error,

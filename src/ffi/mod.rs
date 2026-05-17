@@ -8,6 +8,8 @@ pub type LocationUpdateCallback = EventCallback;
 
 extern "C" {
     pub fn cl_object_release(ptr: *mut c_void);
+    pub fn cl_error_domain() -> *mut c_char;
+    pub fn cl_error_user_info_alternate_region_key() -> *mut c_char;
 
     pub fn cl_manager_new(
         callback: Option<ManagerEventCallback>,
@@ -80,6 +82,12 @@ extern "C" {
     pub fn cl_manager_stop_ranging_beacons(manager: *mut c_void, condition: *mut c_void);
     pub fn cl_manager_start_monitoring_visits(manager: *mut c_void);
     pub fn cl_manager_stop_monitoring_visits(manager: *mut c_void);
+    pub fn cl_location_accuracy_reduced_available() -> bool;
+    pub fn cl_location_accuracy_reduced() -> f64;
+    pub fn cl_location_distance_max() -> f64;
+    pub fn cl_time_interval_max() -> f64;
+    pub fn cl_location_coordinate_2d_invalid_latitude() -> f64;
+    pub fn cl_location_coordinate_2d_invalid_longitude() -> f64;
 
     pub fn cl_geocoder_new(out_geocoder: *mut *mut c_void, error_out: *mut *mut c_char) -> i32;
     pub fn cl_geocoder_is_geocoding(geocoder: *mut c_void) -> bool;
@@ -157,6 +165,12 @@ extern "C" {
         out_region: *mut *mut c_void,
         error_out: *mut *mut c_char,
     ) -> i32;
+    pub fn cl_beacon_region_new_constraint(
+        constraint: *mut c_void,
+        identifier: *const c_char,
+        out_region: *mut *mut c_void,
+        error_out: *mut *mut c_char,
+    ) -> i32;
     pub fn cl_beacon_region_condition_json(region: *mut c_void) -> *mut c_char;
     pub fn cl_beacon_region_peripheral_data_json(
         region: *mut c_void,
@@ -179,10 +193,21 @@ extern "C" {
         out_condition: *mut *mut c_void,
         error_out: *mut *mut c_char,
     ) -> i32;
+    pub fn cl_beacon_identity_constraint_new_uuid(
+        uuid: *const c_char,
+        out_constraint: *mut *mut c_void,
+        error_out: *mut *mut c_char,
+    ) -> i32;
     pub fn cl_beacon_identity_condition_new_uuid_major(
         uuid: *const c_char,
         major: u16,
         out_condition: *mut *mut c_void,
+        error_out: *mut *mut c_char,
+    ) -> i32;
+    pub fn cl_beacon_identity_constraint_new_uuid_major(
+        uuid: *const c_char,
+        major: u16,
+        out_constraint: *mut *mut c_void,
         error_out: *mut *mut c_char,
     ) -> i32;
     pub fn cl_beacon_identity_condition_new_uuid_major_minor(
@@ -192,7 +217,15 @@ extern "C" {
         out_condition: *mut *mut c_void,
         error_out: *mut *mut c_char,
     ) -> i32;
+    pub fn cl_beacon_identity_constraint_new_uuid_major_minor(
+        uuid: *const c_char,
+        major: u16,
+        minor: u16,
+        out_constraint: *mut *mut c_void,
+        error_out: *mut *mut c_char,
+    ) -> i32;
     pub fn cl_beacon_identity_condition_json(condition: *mut c_void) -> *mut c_char;
+    pub fn cl_beacon_identity_constraint_json(constraint: *mut c_void) -> *mut c_char;
 
     pub fn cl_circular_geographic_condition_new(
         latitude: f64,

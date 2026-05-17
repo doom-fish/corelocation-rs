@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.2] - 2026-05-17
+
+### Added
+
+- Added `CLErrorCode`, `error::error_domain()`, and `error::alternate_region_key()` so the crate surfaces CoreLocation's public macOS error domain and error-code constants.
+- Added location sentinel helpers for `kCLLocationAccuracyReduced`, `CLLocationDistanceMax`, `CLTimeIntervalMax`, and `kCLLocationCoordinate2DInvalid`.
+- Added the legacy `BeaconIdentityConstraint` wrapper plus `BeaconRegion::from_constraint` for older beacon-constraint workflows.
+- Extended `Placemark` snapshots with `postal_address` and refreshed the beacon/geocoder/location examples and tests to exercise the new surface.
+- Closed the remaining CoreLocation audit gaps and refreshed the coverage docs to 100% in-scope public macOS coverage.
+
 ## [0.2.1] - 2026-05-16
 
 ### Added

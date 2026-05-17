@@ -11,6 +11,12 @@ fn coordinate_validation_and_distance_work() {
 
 #[test]
 fn location_details_json_round_trip() -> Result<(), Box<dyn std::error::Error>> {
+    let invalid = corelocation::location::invalid_coordinate();
+    assert!(!invalid.is_valid());
+    assert!(corelocation::location::distance_max().is_sign_positive());
+    assert!(corelocation::location::time_interval_max().is_sign_positive());
+    assert!(corelocation::manager::location_accuracy_reduced().is_some());
+
     let details = LocationDetails {
         location: Location::from_coordinate(Coordinate::new(37.3349, -122.0090)),
         ellipsoidal_altitude: Some(12.0),
