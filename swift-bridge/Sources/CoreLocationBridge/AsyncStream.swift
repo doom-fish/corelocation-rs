@@ -90,7 +90,17 @@ public func cl_location_manager_stream_subscribe(
 
 @_cdecl("cl_location_manager_stream_unsubscribe")
 public func cl_location_manager_stream_unsubscribe(_ handle: UnsafeMutableRawPointer) {
-    Unmanaged<CLLocationManagerStreamBridge>.fromOpaque(handle).release()
+    // CoreLocation delivers delegate callbacks on the main run loop.
+    // Releasing the bridge on the main thread serialises this release with any
+    // in-flight callback so that deinit (which sets manager.delegate = nil)
+    // cannot run while a callback is still holding a temporary strong reference
+    // and writing into sender_ptr.
+    let bridge = Unmanaged<CLLocationManagerStreamBridge>.fromOpaque(handle)
+    if Thread.isMainThread {
+        bridge.release()
+    } else {
+        DispatchQueue.main.sync { bridge.release() }
+    }
 }
 
 @_cdecl("cl_location_manager_stream_start_updating_location")
@@ -148,6 +158,11 @@ final class CLMonitorStreamBridge: NSObject {
     private let onEvent: CLStreamEventCallback
     private let ctx: UnsafeMutableRawPointer
     private var eventTask: Task<Void, Never>?
+    // Signalled by the task body's defer block once it has fully exited.
+    // deinit blocks on this so cl_monitor_stream_unsubscribe only returns
+    // after the last possible onEvent(…ctx…) call, preventing a
+    // use-after-free of the Rust sender_ptr after the handle is dropped.
+    private let taskDone = DispatchSemaphore(value: 0)
 
     init(name: String, onEvent: CLStreamEventCallback, ctx: UnsafeMutableRawPointer) async {
         self.monitor = await CLMonitor(name)
@@ -161,7 +176,9 @@ final class CLMonitorStreamBridge: NSObject {
         let monitor = self.monitor
         let onEvent = self.onEvent
         let ctx = self.ctx
+        let taskDone = self.taskDone
         eventTask = Task {
+            defer { taskDone.signal() }
             let events = await monitor.events
             do {
                 for try await event in events {
@@ -180,6 +197,11 @@ final class CLMonitorStreamBridge: NSObject {
 
     deinit {
         eventTask?.cancel()
+        // Block until the task body has fully exited so that no in-flight
+        // onEvent(…ctx…) call races against the Rust side freeing sender_ptr.
+        // The 2-second timeout is a safety net in case CLMonitor.events does
+        // not honour cooperative cancellation (should never fire in practice).
+        _ = taskDone.wait(timeout: .now() + 2)
     }
 }
 

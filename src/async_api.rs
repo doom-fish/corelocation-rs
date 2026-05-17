@@ -118,16 +118,24 @@ struct LocationManagerStreamHandle {
     sender_ptr: *mut c_void,
 }
 
+// SAFETY: bridge_ptr is a retained Obj-C object managed by ARC; only one
+// owner (this handle) exists at a time. sender_ptr is a Box-leaked pointer
+// whose sole ownership belongs to this handle and is freed only in Drop.
 unsafe impl Send for LocationManagerStreamHandle {}
 unsafe impl Sync for LocationManagerStreamHandle {}
 
 impl Drop for LocationManagerStreamHandle {
     fn drop(&mut self) {
         unsafe {
-            // 1. Release the Swift bridge — sets manager.delegate = nil synchronously,
-            //    guaranteeing no further callbacks before we free sender_ptr.
+            // SAFETY: bridge_ptr was created by cl_location_manager_stream_subscribe
+            // and is released exactly once here. The Swift implementation dispatches
+            // the release to the main thread, serialising with any in-flight
+            // CoreLocation delegate callback so that sender_ptr is only freed
+            // after the last possible callback has returned.
             ffi::cl_location_manager_stream_unsubscribe(self.bridge_ptr);
-            // 2. Reclaim and drop the sender Box, which closes the stream.
+            // SAFETY: sender_ptr was created by Box::into_raw above and is
+            // reconstituted exactly once here. The unsubscribe call above ensures
+            // no further callbacks will dereference this pointer.
             drop(Box::from_raw(
                 self.sender_ptr
                     .cast::<AsyncStreamSender<LocationManagerEvent>>(),
@@ -159,7 +167,13 @@ extern "C" fn location_manager_stream_cb(
         if payload_json.is_null() {
             return;
         }
+        // SAFETY: ctx is the Box-leaked AsyncStreamSender pointer kept alive by
+        // LocationManagerStreamHandle until after unsubscribe returns. The Swift
+        // bridge ensures no callback fires after cl_location_manager_stream_unsubscribe
+        // completes (main-thread dispatch serialises release with in-flight callbacks).
         let sender = unsafe { &*ctx.cast::<AsyncStreamSender<LocationManagerEvent>>() };
+        // SAFETY: payload_json is null-checked above; the Swift bridge always
+        // provides a valid NUL-terminated C string for the duration of this call.
         let json = unsafe { core::ffi::CStr::from_ptr(payload_json) }.to_string_lossy();
 
         let event: Option<LocationManagerEvent> = match kind {
@@ -213,6 +227,9 @@ pub struct LocationManagerStream {
     bridge_ptr: *mut c_void,
 }
 
+// SAFETY: LocationManagerStream wraps a BoundedAsyncStream (Send+Sync) and a
+// LocationManagerStreamHandle (Send+Sync). The duplicate bridge_ptr field is
+// only used to forward control calls and is guarded by the handle's lifetime.
 unsafe impl Send for LocationManagerStream {}
 unsafe impl Sync for LocationManagerStream {}
 
@@ -225,12 +242,16 @@ impl LocationManagerStream {
         let (stream, sender) = BoundedAsyncStream::new(capacity);
         let sender_ptr = Box::into_raw(Box::new(sender)).cast::<c_void>();
 
+        // SAFETY: location_manager_stream_cb is a valid extern "C" fn pointer;
+        // sender_ptr is a valid Box-leaked pointer that lives until Drop.
         let bridge_ptr = unsafe {
             ffi::cl_location_manager_stream_subscribe(location_manager_stream_cb, sender_ptr)
         };
         if bridge_ptr.is_null() {
             // Reclaim sender Box before returning the error.
             unsafe {
+                // SAFETY: sender_ptr was just created by Box::into_raw above;
+                // subscribe failed so this is the only reclamation site.
                 drop(Box::from_raw(
                     sender_ptr.cast::<AsyncStreamSender<LocationManagerEvent>>(),
                 ));
@@ -249,21 +270,25 @@ impl LocationManagerStream {
 
     /// Calls `startUpdatingLocation()` on the internal manager.
     pub fn start_updating_location(&self) {
+        // SAFETY: bridge_ptr is valid for the lifetime of self (owned by _handle).
         unsafe { ffi::cl_location_manager_stream_start_updating_location(self.bridge_ptr) }
     }
 
     /// Calls `stopUpdatingLocation()` on the internal manager.
     pub fn stop_updating_location(&self) {
+        // SAFETY: bridge_ptr is valid for the lifetime of self (owned by _handle).
         unsafe { ffi::cl_location_manager_stream_stop_updating_location(self.bridge_ptr) }
     }
 
     /// Calls `startUpdatingHeading()` on the internal manager.
     pub fn start_updating_heading(&self) {
+        // SAFETY: bridge_ptr is valid for the lifetime of self (owned by _handle).
         unsafe { ffi::cl_location_manager_stream_start_updating_heading(self.bridge_ptr) }
     }
 
     /// Calls `startMonitoringSignificantLocationChanges()`.
     pub fn start_monitoring_significant_location_changes(&self) {
+        // SAFETY: bridge_ptr is valid for the lifetime of self (owned by _handle).
         unsafe {
             ffi::cl_location_manager_stream_start_monitoring_significant_changes(self.bridge_ptr);
         }
@@ -271,6 +296,7 @@ impl LocationManagerStream {
 
     /// Calls `stopMonitoringSignificantLocationChanges()`.
     pub fn stop_monitoring_significant_location_changes(&self) {
+        // SAFETY: bridge_ptr is valid for the lifetime of self (owned by _handle).
         unsafe {
             ffi::cl_location_manager_stream_stop_monitoring_significant_changes(self.bridge_ptr);
         }
@@ -324,15 +350,23 @@ struct MonitorStreamHandle {
     sender_ptr: *mut c_void,
 }
 
+// SAFETY: bridge_ptr is a retained Obj-C object managed by ARC; only one
+// owner (this handle) exists at a time. sender_ptr is a Box-leaked pointer
+// whose sole ownership belongs to this handle and is freed only in Drop.
 unsafe impl Send for MonitorStreamHandle {}
 unsafe impl Sync for MonitorStreamHandle {}
 
 impl Drop for MonitorStreamHandle {
     fn drop(&mut self) {
         unsafe {
-            // Cancel the Swift Task (deinit runs synchronously when ARC count → 0).
+            // SAFETY: bridge_ptr was created by cl_monitor_stream_new and is
+            // released exactly once here. The Swift deinit cancels the event Task
+            // and blocks (via DispatchSemaphore) until the task body has fully
+            // exited, so no further callbacks can fire after this call returns.
             ffi::cl_monitor_stream_unsubscribe(self.bridge_ptr);
-            // Close the stream by dropping the last sender.
+            // SAFETY: sender_ptr was created by Box::into_raw above and is
+            // reconstituted exactly once here. The unsubscribe call above ensures
+            // no further callbacks will dereference this pointer.
             drop(Box::from_raw(
                 self.sender_ptr.cast::<AsyncStreamSender<MonitorStreamEvent>>(),
             ));
@@ -354,7 +388,13 @@ extern "C" fn monitor_stream_cb(
         if payload_json.is_null() {
             return;
         }
+        // SAFETY: ctx is the Box-leaked AsyncStreamSender pointer kept alive by
+        // MonitorStreamHandle until after cl_monitor_stream_unsubscribe returns.
+        // The Swift deinit blocks until the task body exits, so this callback
+        // cannot fire after sender_ptr is freed.
         let sender = unsafe { &*ctx.cast::<AsyncStreamSender<MonitorStreamEvent>>() };
+        // SAFETY: payload_json is null-checked above; the Swift bridge always
+        // provides a valid NUL-terminated C string for the duration of this call.
         let json = unsafe { core::ffi::CStr::from_ptr(payload_json) }.to_string_lossy();
 
         let event: Option<MonitorStreamEvent> = match kind {
@@ -386,6 +426,10 @@ pub struct MonitorStream {
     bridge_ptr: *mut c_void,
 }
 
+// SAFETY: MonitorStream wraps a BoundedAsyncStream (Send+Sync) and a
+// MonitorStreamHandle (Send+Sync). The duplicate bridge_ptr field is only
+// used to forward add/remove condition calls and is guarded by the handle's
+// lifetime.
 unsafe impl Send for MonitorStream {}
 unsafe impl Sync for MonitorStream {}
 
@@ -402,6 +446,8 @@ impl MonitorStream {
         let mut error: *mut c_char = core::ptr::null_mut();
 
         let status = unsafe {
+            // SAFETY: monitor_stream_cb is a valid extern "C" fn; sender_ptr is a
+            // valid Box-leaked pointer that lives until MonitorStreamHandle::drop.
             ffi::cl_monitor_stream_new(
                 name_cstr.as_ptr(),
                 monitor_stream_cb,
@@ -413,6 +459,8 @@ impl MonitorStream {
 
         if status != ffi::status::OK {
             unsafe {
+                // SAFETY: sender_ptr was just created by Box::into_raw above;
+                // cl_monitor_stream_new failed so this is the only reclamation site.
                 drop(Box::from_raw(
                     sender_ptr.cast::<AsyncStreamSender<MonitorStreamEvent>>(),
                 ));
@@ -438,6 +486,8 @@ impl MonitorStream {
         let mut error: *mut c_char = core::ptr::null_mut();
 
         let status = unsafe {
+            // SAFETY: bridge_ptr is valid for the lifetime of self (owned by _handle);
+            // condition.as_raw() returns a valid pointer for the duration of this call.
             ffi::cl_monitor_stream_add_condition(
                 self.bridge_ptr,
                 condition.as_raw(),
@@ -458,6 +508,7 @@ impl MonitorStream {
         let mut error: *mut c_char = core::ptr::null_mut();
 
         let status = unsafe {
+            // SAFETY: bridge_ptr is valid for the lifetime of self (owned by _handle).
             ffi::cl_monitor_stream_remove_condition(
                 self.bridge_ptr,
                 id_cstr.as_ptr(),

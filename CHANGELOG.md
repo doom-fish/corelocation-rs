@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.3.1] - 2026-05-17
+
+### Fixed
+
+- **`CLMonitorStreamBridge` use-after-free race** (`AsyncStream.swift`): `deinit`
+  called `eventTask?.cancel()` which sets the cancellation flag but does not
+  block until the task body exits. A Swift Task iteration that passed the
+  `Task.isCancelled` check just before cancellation could still invoke the
+  `onEvent(…ctx…)` callback concurrently with the Rust side freeing `sender_ptr`
+  in `MonitorStreamHandle::drop`. Fixed by adding a `DispatchSemaphore`
+  (`taskDone`) signalled via `defer` at the start of the task body; `deinit`
+  now waits on that semaphore (with a 2-second safety-net timeout) so
+  `cl_monitor_stream_unsubscribe` only returns after the last possible callback.
+- **`cl_location_manager_stream_unsubscribe` background-thread race**
+  (`AsyncStream.swift`): when `LocationManagerStream` was dropped from a
+  non-main thread, CoreLocation could be holding a temporary ARC strong
+  reference to the delegate during an in-flight main-thread callback. This
+  prevented `deinit` (and `manager.delegate = nil`) from running, so Rust freed
+  `sender_ptr` while the callback was still writing into it. Fixed by dispatching
+  `Unmanaged.release()` to the main queue (`DispatchQueue.main.sync` from
+  background threads), serialising the release with CoreLocation callbacks.
+- **Inaccurate `// SAFETY:` comments** in `async_api.rs`: the previous comment
+  claiming an unconditional "no further callbacks" guarantee after
+  `cl_location_manager_stream_unsubscribe` was only true when called on the
+  main thread. Updated both Drop impls with accurate comments reflecting the
+  new synchronisation guarantees.
+- **Missing `// SAFETY:` comments** (`async_api.rs`): every `unsafe { … }` block
+  and `unsafe impl` declaration now carries an accurate `// SAFETY:` annotation.
+- **`doom-fish-utils` version range** (`Cargo.toml`): widened from the overly
+  narrow `"0.1"` (equivalent to `>=0.1.0, <0.2.0`) to `">=0.1, <0.3"` per the
+  doom-fish version-range convention.
+
 ## [0.3.0] - 2026-05-17
 
 ### Added
