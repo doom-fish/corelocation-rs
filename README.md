@@ -11,6 +11,7 @@ Safe, idiomatic Rust bindings for Apple's [CoreLocation](https://developer.apple
 - **Condition monitors** — `Monitor`, `MonitorConfiguration`, `MonitoringEvent`, `MonitoringRecord`, and `CircularGeographicCondition` bridge the newer named-condition monitoring APIs on macOS 14+.
 - **Geocoding** — `Geocoder` supports forward, reverse, region-scoped, locale-aware, and postal-address geocoding, while `Placemark` now includes `postal_address` snapshots.
 - **Framework constants and errors** — location sentinel helpers plus `CLErrorCode`, `error::error_domain()`, and `error::alternate_region_key()` cover the remaining public macOS `CoreLocation` constants.
+- **Async streams** — `async_api::LocationManagerStream` and `async_api::MonitorStream` (feature `async`) wrap `CLLocationManagerDelegate` callbacks and `CLMonitor.events` as executor-agnostic [`BoundedAsyncStream`](https://crates.io/crates/doom-fish-utils) event streams. Works with any async runtime (pollster, tokio, async-std, …).
 - **Live updates** — `LocationUpdater`, `LocationUpdate`, and `LiveUpdateConfiguration` bridge the Swift-refined `CLLocationUpdate.liveUpdates(_:)` API on macOS 14+.
 
 ## Requirements

@@ -35,6 +35,10 @@ mod private;
 pub mod region;
 pub mod visit;
 
+#[cfg(feature = "async")]
+#[cfg_attr(docsrs, doc(cfg(feature = "async")))]
+pub mod async_api;
+
 pub use authorization::{AccuracyAuthorization, AuthorizationSnapshot, AuthorizationStatus};
 pub use beacon_identity_condition::{BeaconIdentityCondition, BeaconIdentityConditionSnapshot};
 pub use beacon_identity_constraint::{

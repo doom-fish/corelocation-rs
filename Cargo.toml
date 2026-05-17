@@ -1,6 +1,6 @@
 [package]
 name = "corelocation-rs"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://github.com/doom-fish/corelocation-rs"
@@ -25,7 +25,11 @@ include = [
     "CHANGELOG.md",
 ]
 
-[lints.rust]
+[features]
+default = []
+async = ["doom-fish-utils"]
+
+
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
@@ -37,6 +41,7 @@ name = "corelocation"
 crate-type = ["lib"]
 
 [dependencies]
+doom-fish-utils = { path = "../doom-fish-utils", version = "0.1", optional = true }
 apple-cf = { version = ">=0.4.0, <0.6", default-features = false }
 libc = "0.2"
 serde = { version = "1", features = ["derive"] }
@@ -51,8 +56,19 @@ rustdoc-args = ["--cfg", "docsrs"]
 [badges]
 maintenance = { status = "actively-developed" }
 
+[dev-dependencies]
+pollster = "0.3"
+
 [[example]]
 name = "01_smoke"
+
+[[example]]
+name = "13_async_location_stream"
+required-features = ["async"]
+
+[[example]]
+name = "14_async_monitor_stream"
+required-features = ["async"]
 
 [profile.release]
 debug = "full"

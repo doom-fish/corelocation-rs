@@ -263,6 +263,39 @@ extern "C" {
     ) -> i32;
     pub fn cl_monitor_record_json(monitor: *mut c_void, identifier: *const c_char) -> *mut c_char;
 
+    // ── async stream: CLLocationManagerDelegate ──────────────────────────────
+    pub fn cl_location_manager_stream_subscribe(
+        on_event: extern "C" fn(i32, *const c_char, *mut c_void),
+        ctx: *mut c_void,
+    ) -> *mut c_void;
+    pub fn cl_location_manager_stream_unsubscribe(handle: *mut c_void);
+    pub fn cl_location_manager_stream_start_updating_location(handle: *mut c_void);
+    pub fn cl_location_manager_stream_stop_updating_location(handle: *mut c_void);
+    pub fn cl_location_manager_stream_start_updating_heading(handle: *mut c_void);
+    pub fn cl_location_manager_stream_start_monitoring_significant_changes(handle: *mut c_void);
+    pub fn cl_location_manager_stream_stop_monitoring_significant_changes(handle: *mut c_void);
+
+    // ── async stream: CLMonitorDelegate (macOS 14+) ──────────────────────────
+    pub fn cl_monitor_stream_new(
+        name: *const c_char,
+        on_event: extern "C" fn(i32, *const c_char, *mut c_void),
+        ctx: *mut c_void,
+        out_handle: *mut *mut c_void,
+        error_out: *mut *mut c_char,
+    ) -> i32;
+    pub fn cl_monitor_stream_unsubscribe(handle: *mut c_void);
+    pub fn cl_monitor_stream_add_condition(
+        handle: *mut c_void,
+        condition: *mut c_void,
+        identifier: *const c_char,
+        error_out: *mut *mut c_char,
+    ) -> i32;
+    pub fn cl_monitor_stream_remove_condition(
+        handle: *mut c_void,
+        identifier: *const c_char,
+        error_out: *mut *mut c_char,
+    ) -> i32;
+
     pub fn cl_location_updates_supported() -> bool;
     pub fn cl_location_updater_new(
         configuration: i32,

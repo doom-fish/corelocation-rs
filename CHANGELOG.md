@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.3.0] - 2026-05-17
+
+### Added
+
+- Added `async_api` module (gated behind the `async` Cargo feature) providing
+  executor-agnostic `BoundedAsyncStream`-backed stream wrappers for two
+  CoreLocation delegate surfaces:
+  - `LocationManagerStream` — wraps all seven `CLLocationManagerDelegate`
+    callbacks (`didUpdateLocations`, `didFailWithError`,
+    `didChangeAuthorization`, `didUpdateHeading`, `didEnterRegion`,
+    `didExitRegion`, `didVisit`) as a single async stream of
+    `LocationManagerEvent` values, backed by a dedicated `CLLocationManager`.
+  - `MonitorStream` — drives `CLMonitor.events` (macOS 14+) from a Swift async
+    Task and surfaces each condition-state change as a `MonitorStreamEvent`,
+    with `add_condition` / `remove_condition` forwarding to the underlying
+    `CLMonitor`.
+- Added Swift bridge file `swift-bridge/Sources/CoreLocationBridge/AsyncStream.swift`
+  containing `CLLocationManagerStreamBridge`, `CLMonitorStreamBridge`, and all
+  `@_cdecl` subscribe / unsubscribe / control thunks.
+- Added `doom-fish-utils` as an optional dependency (pulled in by the `async`
+  feature).
+- Added `pollster = "0.3"` as a dev-dependency for examples.
+- Added examples `13_async_location_stream` and `14_async_monitor_stream`
+  (both require `--features async`).
+- Added integration test file `tests/async_stream_tests.rs` with 10 tests
+  covering the subscribe → event → drop-handle → stream-closes lifecycle for
+  both stream surfaces.
+
 ## [0.2.2] - 2026-05-17
 
 ### Added

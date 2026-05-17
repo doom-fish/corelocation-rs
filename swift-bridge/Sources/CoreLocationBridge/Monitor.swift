@@ -7,7 +7,7 @@ private final class CLSyncResult<T>: @unchecked Sendable {
 }
 
 @available(macOS 14.0, *)
-private func cl_wait<T>(_ operation: @escaping @Sendable () async -> T) -> T {
+func cl_wait<T>(_ operation: @escaping @Sendable () async -> T) -> T {
     let semaphore = DispatchSemaphore(value: 0)
     let result = CLSyncResult<T>()
     Task {
@@ -40,7 +40,7 @@ private func cl_circular_geographic_condition_box(
 }
 
 @available(macOS 14.0, *)
-private func cl_monitor_condition(_ ptr: UnsafeMutableRawPointer?) -> (any CLCondition)? {
+func cl_monitor_condition(_ ptr: UnsafeMutableRawPointer?) -> (any CLCondition)? {
     guard let ptr else {
         return nil
     }
@@ -56,7 +56,7 @@ private func cl_monitor_condition(_ ptr: UnsafeMutableRawPointer?) -> (any CLCon
 }
 
 @available(macOS 14.0, *)
-private func cl_monitor_condition_object(_ condition: any CLCondition) -> [String: Any] {
+func cl_monitor_condition_object(_ condition: any CLCondition) -> [String: Any] {
     if let condition = condition as? CLMonitor.BeaconIdentityCondition {
         return [
             "kind": "beacon_identity",
@@ -89,7 +89,7 @@ private func cl_circular_geographic_condition_object(
 }
 
 @available(macOS 14.0, *)
-private func cl_monitoring_state_raw(_ state: CLMonitor.Event.State) -> Int32 {
+func cl_monitoring_state_raw(_ state: CLMonitor.Event.State) -> Int32 {
     Int32(state.rawValue)
 }
 
@@ -99,7 +99,7 @@ private func cl_monitoring_state(_ rawValue: Int32) -> CLMonitor.Event.State {
 }
 
 @available(macOS 14.0, *)
-private func cl_monitor_event_object(_ event: CLMonitor.Event) -> [String: Any] {
+func cl_monitor_event_object(_ event: CLMonitor.Event) -> [String: Any] {
     var object: [String: Any] = [
         "identifier": event.identifier,
         "refinement": cl_optional(event.refinement.map(cl_monitor_condition_object)),
