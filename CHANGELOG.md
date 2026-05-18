@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.4] - 2026-05-18
+
+- Added `///` documentation across the public CoreLocation wrapper surface, lifting rustdoc coverage from 7.0% to 93.4%.
+- No API surface changes; release is a documentation-only patch bump.
+
 ## [0.3.3] - 2026-05-18
 
 - Widen apple-cf version bound to `<0.10` so 0.9.x resolves.

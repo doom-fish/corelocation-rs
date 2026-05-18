@@ -41,7 +41,7 @@
 //! use corelocation::monitor::CircularGeographicCondition;
 //! use corelocation::location::Coordinate;
 //!
-//! # async fn run() -> Result<(), corelocation::error::CoreLocationError> {
+//! # async fn run() -> Result<(), corelocation::error::`CoreLocation`Error> {
 //! let stream = MonitorStream::new("geofencedemo", 16)?;
 //! let condition = CircularGeographicCondition::new(
 //!     Coordinate { latitude: 37.3318, longitude: -122.0312 },

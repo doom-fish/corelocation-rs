@@ -5,13 +5,16 @@ use crate::error::{from_swift, CoreLocationError};
 use crate::ffi;
 use crate::private::{decode_json, to_cstring};
 
+/// Snapshot of `CLBeaconIdentityConstraint`.
 pub type BeaconIdentityConstraintSnapshot = BeaconIdentityConditionSnapshot;
 
+/// Wraps `CLBeaconIdentityConstraint`.
 pub struct BeaconIdentityConstraint {
     raw: *mut c_void,
 }
 
 impl BeaconIdentityConstraint {
+    /// Wraps `CLBeaconIdentityConstraint.init(uuid:)`.
     pub fn new(uuid: &str) -> Result<Self, CoreLocationError> {
         let uuid = to_cstring(uuid)?;
         let mut raw = core::ptr::null_mut();
@@ -26,6 +29,7 @@ impl BeaconIdentityConstraint {
         }
     }
 
+    /// Wraps `CLBeaconIdentityConstraint.init(uuid:major:)`.
     pub fn with_major(uuid: &str, major: u16) -> Result<Self, CoreLocationError> {
         let uuid = to_cstring(uuid)?;
         let mut raw = core::ptr::null_mut();
@@ -45,6 +49,7 @@ impl BeaconIdentityConstraint {
         }
     }
 
+    /// Wraps `CLBeaconIdentityConstraint.init(uuid:major:minor:)`.
     pub fn with_major_minor(uuid: &str, major: u16, minor: u16) -> Result<Self, CoreLocationError> {
         let uuid = to_cstring(uuid)?;
         let mut raw = core::ptr::null_mut();
@@ -65,6 +70,7 @@ impl BeaconIdentityConstraint {
         }
     }
 
+    /// Returns a snapshot of the wrapped `CLBeaconIdentityConstraint`.
     pub fn snapshot(&self) -> Result<BeaconIdentityConstraintSnapshot, CoreLocationError> {
         let json = unsafe { ffi::cl_beacon_identity_constraint_json(self.raw) };
         decode_json(json)

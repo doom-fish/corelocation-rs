@@ -10,22 +10,33 @@ use crate::region::MonitorableRegion;
 use crate::{Coordinate, Location, Placemark};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+/// Postal-address input used by `CLGeocoder.geocodePostalAddress(_:preferredLocale:)`.
 pub struct PostalAddress {
+    /// Postal-address street passed to `CLGeocoder.geocodePostalAddress(_:preferredLocale:)`.
     pub street: Option<String>,
+    /// Postal-address city passed to `CLGeocoder.geocodePostalAddress(_:preferredLocale:)`.
     pub city: Option<String>,
+    /// Postal-address state passed to `CLGeocoder.geocodePostalAddress(_:preferredLocale:)`.
     pub state: Option<String>,
+    /// Postal-address postal code passed to `CLGeocoder.geocodePostalAddress(_:preferredLocale:)`.
     pub postal_code: Option<String>,
+    /// Postal-address country passed to `CLGeocoder.geocodePostalAddress(_:preferredLocale:)`.
     pub country: Option<String>,
+    /// Postal-address iso country code passed to `CLGeocoder.geocodePostalAddress(_:preferredLocale:)`.
     pub iso_country_code: Option<String>,
+    /// Postal-address sub administrative area passed to `CLGeocoder.geocodePostalAddress(_:preferredLocale:)`.
     pub sub_administrative_area: Option<String>,
+    /// Postal-address sub locality passed to `CLGeocoder.geocodePostalAddress(_:preferredLocale:)`.
     pub sub_locality: Option<String>,
 }
 
+/// Wraps `CLGeocoder`.
 pub struct Geocoder {
     raw: *mut c_void,
 }
 
 impl Geocoder {
+    /// Wraps `CLGeocoder.init()`.
     pub fn new() -> Result<Self, CoreLocationError> {
         let mut raw = core::ptr::null_mut();
         let mut error = core::ptr::null_mut();
@@ -38,14 +49,17 @@ impl Geocoder {
     }
 
     #[must_use]
+    /// Wraps `CLGeocoder.isGeocoding`.
     pub fn is_geocoding(&self) -> bool {
         unsafe { ffi::cl_geocoder_is_geocoding(self.raw) }
     }
 
+    /// Wraps `CLGeocoder.cancelGeocode()`.
     pub fn cancel(&self) {
         unsafe { ffi::cl_geocoder_cancel(self.raw) };
     }
 
+    /// Wraps `CLGeocoder.geocodeAddressString(_:)`.
     pub fn geocode_address_string(
         &self,
         address: &str,
@@ -111,6 +125,7 @@ impl Geocoder {
         }
     }
 
+    /// Wraps `CLGeocoder.reverseGeocodeLocation(_:)`.
     pub fn reverse_geocode_location(
         &self,
         location: &Location,
@@ -118,6 +133,7 @@ impl Geocoder {
         self.reverse_geocode_coordinate(location.coordinate)
     }
 
+    /// Wraps `CLGeocoder.reverseGeocodeLocation(_:preferredLocale:)`.
     pub fn reverse_geocode_location_with_locale(
         &self,
         location: &Location,
@@ -126,6 +142,7 @@ impl Geocoder {
         self.reverse_geocode_coordinate_with_locale(location.coordinate, locale_identifier)
     }
 
+    /// Reverse geocodes a coordinate via `CLGeocoder.reverseGeocodeLocation(_:)`.
     pub fn reverse_geocode_coordinate(
         &self,
         coordinate: Coordinate,
@@ -133,6 +150,7 @@ impl Geocoder {
         self.reverse_geocode_coordinate_with_locale(coordinate, None)
     }
 
+    /// Reverse geocodes a coordinate via `CLGeocoder.reverseGeocodeLocation(_:preferredLocale:)`.
     pub fn reverse_geocode_coordinate_with_locale(
         &self,
         coordinate: Coordinate,
@@ -160,6 +178,7 @@ impl Geocoder {
         }
     }
 
+    /// Wraps `CLGeocoder.geocodePostalAddress(_:preferredLocale:)`.
     pub fn geocode_postal_address(
         &self,
         address: &PostalAddress,
@@ -167,6 +186,7 @@ impl Geocoder {
         self.geocode_postal_address_with_locale(address, None)
     }
 
+    /// Wraps `CLGeocoder.geocodePostalAddress(_:preferredLocale:)`.
     pub fn geocode_postal_address_with_locale(
         &self,
         address: &PostalAddress,

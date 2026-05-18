@@ -8,17 +8,23 @@ use crate::monitor::{private::ConditionSealed, Condition};
 use crate::private::{decode_json, to_cstring};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+/// Snapshot of `CLBeaconIdentityCondition`.
 pub struct BeaconIdentityConditionSnapshot {
+    /// Matches `CLBeaconIdentityCondition.uuid`.
     pub uuid: String,
+    /// Matches `CLBeaconIdentityCondition.major`.
     pub major: Option<u16>,
+    /// Matches `CLBeaconIdentityCondition.minor`.
     pub minor: Option<u16>,
 }
 
+/// Wraps `CLBeaconIdentityCondition`.
 pub struct BeaconIdentityCondition {
     raw: *mut c_void,
 }
 
 impl BeaconIdentityCondition {
+    /// Wraps `CLBeaconIdentityCondition.init(uuid:)`.
     pub fn new(uuid: &str) -> Result<Self, CoreLocationError> {
         let uuid = to_cstring(uuid)?;
         let mut raw = core::ptr::null_mut();
@@ -33,6 +39,7 @@ impl BeaconIdentityCondition {
         }
     }
 
+    /// Wraps `CLBeaconIdentityCondition.init(uuid:major:)`.
     pub fn with_major(uuid: &str, major: u16) -> Result<Self, CoreLocationError> {
         let uuid = to_cstring(uuid)?;
         let mut raw = core::ptr::null_mut();
@@ -52,6 +59,7 @@ impl BeaconIdentityCondition {
         }
     }
 
+    /// Wraps `CLBeaconIdentityCondition.init(uuid:major:minor:)`.
     pub fn with_major_minor(uuid: &str, major: u16, minor: u16) -> Result<Self, CoreLocationError> {
         let uuid = to_cstring(uuid)?;
         let mut raw = core::ptr::null_mut();
@@ -72,6 +80,7 @@ impl BeaconIdentityCondition {
         }
     }
 
+    /// Returns a snapshot of the wrapped `CLBeaconIdentityCondition`.
     pub fn snapshot(&self) -> Result<BeaconIdentityConditionSnapshot, CoreLocationError> {
         let json = unsafe { ffi::cl_beacon_identity_condition_json(self.raw) };
         decode_json(json)

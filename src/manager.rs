@@ -14,16 +14,25 @@ use crate::region::{Beacon, MonitorableRegion, Region, RegionState};
 use crate::visit::Visit;
 use crate::Heading;
 
+/// Matches `kCLDistanceFilterNone`.
 pub const DISTANCE_FILTER_NONE: f64 = -1.0;
+/// Matches `kCLHeadingFilterNone`.
 pub const HEADING_FILTER_NONE: f64 = -1.0;
+/// Matches `kCLLocationAccuracyBestForNavigation`.
 pub const LOCATION_ACCURACY_BEST_FOR_NAVIGATION: f64 = -2.0;
+/// Matches `kCLLocationAccuracyBest`.
 pub const LOCATION_ACCURACY_BEST: f64 = -1.0;
+/// Matches `kCLLocationAccuracyNearestTenMeters`.
 pub const LOCATION_ACCURACY_NEAREST_TEN_METERS: f64 = 10.0;
+/// Matches `kCLLocationAccuracyHundredMeters`.
 pub const LOCATION_ACCURACY_HUNDRED_METERS: f64 = 100.0;
+/// Matches `kCLLocationAccuracyKilometer`.
 pub const LOCATION_ACCURACY_KILOMETER: f64 = 1_000.0;
+/// Matches `kCLLocationAccuracyThreeKilometers`.
 pub const LOCATION_ACCURACY_THREE_KILOMETERS: f64 = 3_000.0;
 
 #[must_use]
+/// Returns `kCLLocationAccuracyReduced` when the current SDK exposes it.
 pub fn location_accuracy_reduced() -> Option<f64> {
     if unsafe { ffi::cl_location_accuracy_reduced_available() } {
         Some(unsafe { ffi::cl_location_accuracy_reduced() })
@@ -34,16 +43,23 @@ pub fn location_accuracy_reduced() -> Option<f64> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[repr(i32)]
+/// Wraps `CLActivityType`.
 pub enum ActivityType {
+    /// Matches the `Other` case of `CLActivityType`.
     Other = 1,
+    /// Matches the `AutomotiveNavigation` case of `CLActivityType`.
     AutomotiveNavigation = 2,
+    /// Matches the `Fitness` case of `CLActivityType`.
     Fitness = 3,
+    /// Matches the `OtherNavigation` case of `CLActivityType`.
     OtherNavigation = 4,
+    /// Matches the `Airborne` case of `CLActivityType`.
     Airborne = 5,
 }
 
 impl ActivityType {
     #[must_use]
+    /// Builds an `ActivityType` from a raw `CLActivityType` value.
     pub const fn from_raw(raw: i32) -> Self {
         match raw {
             2 => Self::AutomotiveNavigation,
@@ -57,18 +73,27 @@ impl ActivityType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[repr(i32)]
+/// Wraps `CLDeviceOrientation`.
 pub enum DeviceOrientation {
+    /// Matches the `Unknown` case of `CLDeviceOrientation`.
     Unknown = 0,
+    /// Matches the `Portrait` case of `CLDeviceOrientation`.
     Portrait = 1,
+    /// Matches the `PortraitUpsideDown` case of `CLDeviceOrientation`.
     PortraitUpsideDown = 2,
+    /// Matches the `LandscapeLeft` case of `CLDeviceOrientation`.
     LandscapeLeft = 3,
+    /// Matches the `LandscapeRight` case of `CLDeviceOrientation`.
     LandscapeRight = 4,
+    /// Matches the `FaceUp` case of `CLDeviceOrientation`.
     FaceUp = 5,
+    /// Matches the `FaceDown` case of `CLDeviceOrientation`.
     FaceDown = 6,
 }
 
 impl DeviceOrientation {
     #[must_use]
+    /// Builds a `DeviceOrientation` from a raw `CLDeviceOrientation` value.
     pub const fn from_raw(raw: i32) -> Self {
         match raw {
             1 => Self::Portrait,
@@ -83,14 +108,19 @@ impl DeviceOrientation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+/// Snapshot of the `NSError` values delivered by `CLLocationManagerDelegate`.
 pub struct LocationManagerErrorInfo {
+    /// Matches `NSError.domain`.
     pub domain: String,
+    /// Matches `NSError.code`.
     pub code: i32,
+    /// Matches the localized `NSError` message surfaced by `CoreLocation`.
     pub message: String,
 }
 
 impl LocationManagerErrorInfo {
     #[must_use]
+    /// Returns the `CLError.Code` value when the bridged `NSError` comes from `CoreLocation`.
     pub fn error_code(&self) -> Option<CLErrorCode> {
         if self.domain == error_domain() {
             CLErrorCode::from_raw(self.code)
@@ -100,6 +130,7 @@ impl LocationManagerErrorInfo {
     }
 
     #[must_use]
+    /// Returns `CLErrorUserInfoAlternateRegionKey` when `CoreLocation` provides it.
     pub fn alternate_region_key(&self) -> Option<&'static str> {
         if self.domain == error_domain() && self.error_code() == Some(CLErrorCode::RegionMonitoringResponseDelayed) {
             Some(alternate_region_key())
@@ -139,43 +170,54 @@ mod private {
     pub trait Sealed {}
 }
 
+/// Rust companion to `CLLocationManagerDelegate`.
 pub trait LocationManagerDelegate: Send + private::Sealed {
+    /// Handles `locationManager(_:didUpdateLocations:)`.
     fn did_update_locations(&mut self, locations: Vec<Location>) {
         let _ = locations;
     }
 
+    /// Handles `locationManager(_:didFailWithError:)`.
     fn did_fail_with_error(&mut self, error: LocationManagerErrorInfo) {
         let _ = error;
     }
 
+    /// Handles `locationManagerDidChangeAuthorization(_:)` using the status-only view.
     fn did_change_authorization(&mut self, status: AuthorizationStatus) {
         let _ = status;
     }
 
+    /// Handles `locationManagerDidChangeAuthorization(_:)` using the full authorization snapshot.
     fn did_change_authorization_details(&mut self, authorization: AuthorizationSnapshot) {
         let _ = authorization;
     }
 
+    /// Handles `locationManager(_:didUpdateHeading:)`.
     fn did_update_heading(&mut self, heading: Heading) {
         let _ = heading;
     }
 
+    /// Handles `locationManager(_:didEnterRegion:)`.
     fn did_enter_region(&mut self, region: Region) {
         let _ = region;
     }
 
+    /// Handles `locationManager(_:didExitRegion:)`.
     fn did_exit_region(&mut self, region: Region) {
         let _ = region;
     }
 
+    /// Handles `locationManager(_:didDetermineState:for:)`.
     fn did_determine_state(&mut self, state: RegionState, region: Region) {
         let _ = (state, region);
     }
 
+    /// Handles `locationManager(_:didStartMonitoringFor:)`.
     fn did_start_monitoring_region(&mut self, region: Region) {
         let _ = region;
     }
 
+    /// Handles `locationManager(_:monitoringDidFailFor:withError:)`.
     fn monitoring_did_fail_for_region(
         &mut self,
         region: Option<Region>,
@@ -184,6 +226,7 @@ pub trait LocationManagerDelegate: Send + private::Sealed {
         let _ = (region, error);
     }
 
+    /// Handles `locationManager(_:didRange:satisfying:)`.
     fn did_range_beacons(
         &mut self,
         beacons: Vec<Beacon>,
@@ -192,6 +235,7 @@ pub trait LocationManagerDelegate: Send + private::Sealed {
         let _ = (beacons, condition);
     }
 
+    /// Handles `locationManager(_:didFailRangingFor:error:)`.
     fn did_fail_ranging_beacons(
         &mut self,
         condition: BeaconIdentityConditionSnapshot,
@@ -200,14 +244,18 @@ pub trait LocationManagerDelegate: Send + private::Sealed {
         let _ = (condition, error);
     }
 
+    /// Handles `locationManagerDidPauseLocationUpdates(_:)`.
     fn did_pause_location_updates(&mut self) {}
 
+    /// Handles `locationManagerDidResumeLocationUpdates(_:)`.
     fn did_resume_location_updates(&mut self) {}
 
+    /// Handles `locationManager(_:didFinishDeferredUpdatesWithError:)`.
     fn did_finish_deferred_updates(&mut self, error: Option<LocationManagerErrorInfo>) {
         let _ = error;
     }
 
+    /// Handles `locationManager(_:didVisit:)`.
     fn did_visit(&mut self, visit: Visit) {
         let _ = visit;
     }
@@ -231,6 +279,7 @@ type DeferredUpdatesHandler = Box<dyn FnMut(Option<LocationManagerErrorInfo>) + 
 type VisitHandler = Box<dyn FnMut(Visit) + Send + 'static>;
 
 #[allow(clippy::type_complexity)]
+/// Closure-based `LocationManagerDelegate`.
 pub struct LocationManagerCallbacks {
     locations: Option<LocationsHandler>,
     error: Option<ErrorHandler>,
@@ -252,6 +301,7 @@ pub struct LocationManagerCallbacks {
 
 impl LocationManagerCallbacks {
     #[must_use]
+    /// Creates a wrapper around `CLLocationManagerDelegate`.
     pub fn new() -> Self {
         Self {
             locations: None,
@@ -274,12 +324,14 @@ impl LocationManagerCallbacks {
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_locations(mut self, callback: impl FnMut(Vec<Location>) + Send + 'static) -> Self {
         self.locations = Some(Box::new(callback));
         self
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_error(
         mut self,
         callback: impl FnMut(LocationManagerErrorInfo) + Send + 'static,
@@ -289,6 +341,7 @@ impl LocationManagerCallbacks {
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_authorization_change(
         mut self,
         callback: impl FnMut(AuthorizationStatus) + Send + 'static,
@@ -298,6 +351,7 @@ impl LocationManagerCallbacks {
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_authorization_details(
         mut self,
         callback: impl FnMut(AuthorizationSnapshot) + Send + 'static,
@@ -307,24 +361,28 @@ impl LocationManagerCallbacks {
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_heading(mut self, callback: impl FnMut(Heading) + Send + 'static) -> Self {
         self.heading = Some(Box::new(callback));
         self
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_enter_region(mut self, callback: impl FnMut(Region) + Send + 'static) -> Self {
         self.enter_region = Some(Box::new(callback));
         self
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_exit_region(mut self, callback: impl FnMut(Region) + Send + 'static) -> Self {
         self.exit_region = Some(Box::new(callback));
         self
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_region_state(
         mut self,
         callback: impl FnMut(RegionState, Region) + Send + 'static,
@@ -334,6 +392,7 @@ impl LocationManagerCallbacks {
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_start_monitoring_region(
         mut self,
         callback: impl FnMut(Region) + Send + 'static,
@@ -343,6 +402,7 @@ impl LocationManagerCallbacks {
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_monitoring_failure(
         mut self,
         callback: impl FnMut(Option<Region>, LocationManagerErrorInfo) + Send + 'static,
@@ -352,6 +412,7 @@ impl LocationManagerCallbacks {
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_beacon_range(
         mut self,
         callback: impl FnMut(Vec<Beacon>, BeaconIdentityConditionSnapshot) + Send + 'static,
@@ -361,6 +422,7 @@ impl LocationManagerCallbacks {
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_beacon_range_error(
         mut self,
         callback: impl FnMut(BeaconIdentityConditionSnapshot, LocationManagerErrorInfo) + Send + 'static,
@@ -370,18 +432,21 @@ impl LocationManagerCallbacks {
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_pause_location_updates(mut self, callback: impl FnMut() + Send + 'static) -> Self {
         self.pause_location_updates = Some(Box::new(callback));
         self
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_resume_location_updates(mut self, callback: impl FnMut() + Send + 'static) -> Self {
         self.resume_location_updates = Some(Box::new(callback));
         self
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_deferred_updates(
         mut self,
         callback: impl FnMut(Option<LocationManagerErrorInfo>) + Send + 'static,
@@ -391,6 +456,7 @@ impl LocationManagerCallbacks {
     }
 
     #[must_use]
+    /// Registers a closure for the corresponding `CLLocationManagerDelegate` callback.
     pub fn on_visit(mut self, callback: impl FnMut(Visit) + Send + 'static) -> Self {
         self.visit = Some(Box::new(callback));
         self
@@ -518,6 +584,7 @@ struct CallbackState {
     delegate: Mutex<Box<dyn LocationManagerDelegate>>,
 }
 
+/// Wraps `CLLocationManager`.
 pub struct LocationManager {
     raw: *mut c_void,
     callback_state: Option<Box<CallbackState>>,
@@ -614,6 +681,7 @@ unsafe extern "C" fn manager_event_trampoline(user_info: *mut c_void, payload_js
 }
 
 impl LocationManager {
+    /// Creates a wrapper around `CLLocationManager`.
     pub fn new() -> Result<Self, CoreLocationError> {
         Self::new_inner(None)
     }
@@ -625,6 +693,7 @@ impl LocationManager {
         Self::new_inner(Some(Box::new(delegate)))
     }
 
+    /// Creates this wrapper using the corresponding `CLLocationManager` convenience.
     pub fn with_callbacks(callbacks: LocationManagerCallbacks) -> Result<Self, CoreLocationError> {
         Self::with_delegate(callbacks)
     }
@@ -663,78 +732,95 @@ impl LocationManager {
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.desiredAccuracy`.
     pub fn desired_accuracy(&self) -> f64 {
         unsafe { ffi::cl_manager_desired_accuracy(self.raw) }
     }
 
+    /// Wraps `CLLocationManager.desiredAccuracy`.
     pub fn set_desired_accuracy(&self, accuracy: f64) {
         unsafe { ffi::cl_manager_set_desired_accuracy(self.raw, accuracy) };
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.activityType`.
     pub fn activity_type(&self) -> ActivityType {
         ActivityType::from_raw(unsafe { ffi::cl_manager_activity_type(self.raw) })
     }
 
+    /// Wraps `CLLocationManager.activityType`.
     pub fn set_activity_type(&self, activity_type: ActivityType) {
         unsafe { ffi::cl_manager_set_activity_type(self.raw, activity_type as i32) };
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.distanceFilter`.
     pub fn distance_filter(&self) -> f64 {
         unsafe { ffi::cl_manager_distance_filter(self.raw) }
     }
 
+    /// Wraps `CLLocationManager.distanceFilter`.
     pub fn set_distance_filter(&self, distance: f64) {
         unsafe { ffi::cl_manager_set_distance_filter(self.raw, distance) };
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.pausesLocationUpdatesAutomatically`.
     pub fn pauses_location_updates_automatically(&self) -> bool {
         unsafe { ffi::cl_manager_pauses_location_updates_automatically(self.raw) }
     }
 
+    /// Wraps `CLLocationManager.pausesLocationUpdatesAutomatically`.
     pub fn set_pauses_location_updates_automatically(&self, pauses: bool) {
         unsafe { ffi::cl_manager_set_pauses_location_updates_automatically(self.raw, pauses) };
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.allowsBackgroundLocationUpdates`.
     pub fn allows_background_location_updates(&self) -> bool {
         unsafe { ffi::cl_manager_allows_background_location_updates(self.raw) }
     }
 
+    /// Wraps `CLLocationManager.allowsBackgroundLocationUpdates`.
     pub fn set_allows_background_location_updates(&self, allows: bool) {
         unsafe { ffi::cl_manager_set_allows_background_location_updates(self.raw, allows) };
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.headingFilter`.
     pub fn heading_filter(&self) -> f64 {
         unsafe { ffi::cl_manager_heading_filter(self.raw) }
     }
 
+    /// Wraps `CLLocationManager.headingFilter`.
     pub fn set_heading_filter(&self, heading_filter: f64) {
         unsafe { ffi::cl_manager_set_heading_filter(self.raw, heading_filter) };
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.headingOrientation`.
     pub fn heading_orientation(&self) -> DeviceOrientation {
         DeviceOrientation::from_raw(unsafe { ffi::cl_manager_heading_orientation(self.raw) })
     }
 
+    /// Wraps `CLLocationManager.headingOrientation`.
     pub fn set_heading_orientation(&self, orientation: DeviceOrientation) {
         unsafe { ffi::cl_manager_set_heading_orientation(self.raw, orientation as i32) };
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.authorizationStatus`.
     pub fn authorization_status(&self) -> AuthorizationStatus {
         AuthorizationStatus::from_raw(unsafe { ffi::cl_manager_authorization_status(self.raw) })
     }
 
+    /// Returns a snapshot of the wrapped `CLLocationManager` authorization properties.
     pub fn authorization(&self) -> Result<AuthorizationSnapshot, CoreLocationError> {
         let json = unsafe { ffi::cl_manager_authorization_json(self.raw) };
         decode_json(json)
     }
 
+    /// Returns the wrapped `CLLocationManager.accuracyAuthorization` value when available.
     pub fn accuracy_authorization(
         &self,
     ) -> Result<Option<AccuracyAuthorization>, CoreLocationError> {
@@ -742,54 +828,65 @@ impl LocationManager {
             .map(|authorization| authorization.accuracy)
     }
 
+    /// Returns the wrapped `CLLocationManager.isAuthorizedForWidgetUpdates` value when available.
     pub fn is_authorized_for_widget_updates(&self) -> Result<Option<bool>, CoreLocationError> {
         self.authorization()
             .map(|authorization| authorization.authorized_for_widget_updates)
     }
 
     #[must_use]
+    /// Wraps the class-level `CLLocationManager.authorizationStatus()` query.
     pub fn global_authorization_status() -> AuthorizationStatus {
         AuthorizationStatus::from_raw(unsafe { ffi::cl_manager_authorization_status_global() })
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.locationServicesEnabled`.
     pub fn location_services_enabled() -> bool {
         unsafe { ffi::cl_location_services_enabled() }
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.headingAvailable`.
     pub fn heading_available() -> bool {
         unsafe { ffi::cl_heading_available() }
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.significantLocationChangeMonitoringAvailable`.
     pub fn significant_location_change_monitoring_available() -> bool {
         unsafe { ffi::cl_significant_location_change_monitoring_available() }
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.circularRegionMonitoringAvailable`.
     pub fn circular_region_monitoring_available() -> bool {
         unsafe { ffi::cl_circular_region_monitoring_available() }
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.beaconRegionMonitoringAvailable`.
     pub fn beacon_region_monitoring_available() -> bool {
         unsafe { ffi::cl_beacon_region_monitoring_available() }
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.rangingAvailable`.
     pub fn ranging_available() -> bool {
         unsafe { ffi::cl_ranging_available() }
     }
 
+    /// Wraps `CLLocationManager.requestWhenInUseAuthorization`.
     pub fn request_when_in_use_authorization(&self) {
         unsafe { ffi::cl_manager_request_when_in_use_authorization(self.raw) };
     }
 
+    /// Wraps `CLLocationManager.requestAlwaysAuthorization`.
     pub fn request_always_authorization(&self) {
         unsafe { ffi::cl_manager_request_always_authorization(self.raw) };
     }
 
+    /// Wraps `CLLocationManager.requestTemporaryFullAccuracyAuthorization`.
     pub fn request_temporary_full_accuracy_authorization(
         &self,
         purpose_key: &str,
@@ -810,18 +907,22 @@ impl LocationManager {
         }
     }
 
+    /// Wraps `CLLocationManager.startUpdatingLocation`.
     pub fn start_updating_location(&self) {
         unsafe { ffi::cl_manager_start_updating_location(self.raw) };
     }
 
+    /// Wraps `CLLocationManager.stopUpdatingLocation`.
     pub fn stop_updating_location(&self) {
         unsafe { ffi::cl_manager_stop_updating_location(self.raw) };
     }
 
+    /// Wraps `CLLocationManager.requestLocation`.
     pub fn request_location(&self) {
         unsafe { ffi::cl_manager_request_location(self.raw) };
     }
 
+    /// Wraps `CLLocationManager.startUpdatingHeading`.
     pub fn start_updating_heading(&self) -> Result<(), CoreLocationError> {
         let mut error = core::ptr::null_mut();
         let status = unsafe { ffi::cl_manager_start_updating_heading(self.raw, &mut error) };
@@ -832,43 +933,52 @@ impl LocationManager {
         }
     }
 
+    /// Wraps `CLLocationManager.dismissHeadingCalibrationDisplay`.
     pub fn dismiss_heading_calibration_display(&self) {
         unsafe { ffi::cl_manager_dismiss_heading_calibration_display(self.raw) };
     }
 
+    /// Wraps `CLLocationManager.startMonitoringSignificantLocationChanges`.
     pub fn start_monitoring_significant_location_changes(&self) {
         unsafe { ffi::cl_manager_start_monitoring_significant_location_changes(self.raw) };
     }
 
+    /// Wraps `CLLocationManager.stopMonitoringSignificantLocationChanges`.
     pub fn stop_monitoring_significant_location_changes(&self) {
         unsafe { ffi::cl_manager_stop_monitoring_significant_location_changes(self.raw) };
     }
 
+    /// Returns the wrapped `CLLocationManager.location` snapshot.
     pub fn last_location(&self) -> Result<Option<Location>, CoreLocationError> {
         let json = unsafe { ffi::cl_manager_last_location_json(self.raw) };
         decode_optional_json(json)
     }
 
+    /// Returns the wrapped `CLLocationManager.location` snapshot with refined `CoreLocation` fields.
     pub fn last_location_details(&self) -> Result<Option<LocationDetails>, CoreLocationError> {
         let json = unsafe { ffi::cl_manager_last_location_details_json(self.raw) };
         decode_optional_json(json)
     }
 
+    /// Returns the wrapped `CLLocationManager.heading` snapshot.
     pub fn heading(&self) -> Result<Option<Heading>, CoreLocationError> {
         let json = unsafe { ffi::cl_manager_heading_json(self.raw) };
         decode_optional_json(json)
     }
 
     #[must_use]
+    /// Wraps `CLLocationManager.maximumRegionMonitoringDistance`.
     pub fn maximum_region_monitoring_distance(&self) -> f64 {
         unsafe { ffi::cl_manager_maximum_region_monitoring_distance(self.raw) }
     }
 
+    /// Returns snapshots of the wrapped `CLLocationManager.monitoredRegions` set.
     pub fn monitored_regions(&self) -> Result<Vec<Region>, CoreLocationError> {
         let json = unsafe { ffi::cl_manager_monitored_regions_json(self.raw) };
         decode_json(json)
     }
 
+    /// Returns snapshots of the beacon constraints currently ranged by `CLLocationManager`.
     pub fn ranged_beacon_constraints(
         &self,
     ) -> Result<Vec<BeaconIdentityConditionSnapshot>, CoreLocationError> {
@@ -913,6 +1023,7 @@ impl LocationManager {
         }
     }
 
+    /// Wraps `CLLocationManager.startRangingBeacons`.
     pub fn start_ranging_beacons(
         &self,
         condition: &BeaconIdentityCondition,
@@ -928,14 +1039,17 @@ impl LocationManager {
         }
     }
 
+    /// Wraps `CLLocationManager.stopRangingBeacons`.
     pub fn stop_ranging_beacons(&self, condition: &BeaconIdentityCondition) {
         unsafe { ffi::cl_manager_stop_ranging_beacons(self.raw, condition.as_raw()) };
     }
 
+    /// Wraps `CLLocationManager.startMonitoringVisits`.
     pub fn start_monitoring_visits(&self) {
         unsafe { ffi::cl_manager_start_monitoring_visits(self.raw) };
     }
 
+    /// Wraps `CLLocationManager.stopMonitoringVisits`.
     pub fn stop_monitoring_visits(&self) {
         unsafe { ffi::cl_manager_stop_monitoring_visits(self.raw) };
     }

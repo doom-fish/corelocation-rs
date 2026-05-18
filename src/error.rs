@@ -8,40 +8,67 @@ use crate::ffi;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
+/// Error type surfaced by `CoreLocation` bridge calls.
 pub enum CoreLocationError {
+    /// The bridge rejected an argument before `CoreLocation` handled it.
     InvalidArgument(String),
+    /// `CoreLocation` reported an `NSError` failure through the bridge.
     FrameworkError(String),
+    /// The bridge timed out while waiting for a `CoreLocation` operation.
     TimedOut(String),
+    /// An unclassified `CoreLocation` or bridge error.
     Unknown { code: i32, message: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(i32)]
+/// Wraps `CLError.Code`.
 pub enum CLErrorCode {
+    /// Matches the `LocationUnknown` case of `CLError.Code`.
     LocationUnknown = 0,
+    /// Matches the `Denied` case of `CLError.Code`.
     Denied = 1,
+    /// Matches the `Network` case of `CLError.Code`.
     Network = 2,
+    /// Matches the `HeadingFailure` case of `CLError.Code`.
     HeadingFailure = 3,
+    /// Matches the `RegionMonitoringDenied` case of `CLError.Code`.
     RegionMonitoringDenied = 4,
+    /// Matches the `RegionMonitoringFailure` case of `CLError.Code`.
     RegionMonitoringFailure = 5,
+    /// Matches the `RegionMonitoringSetupDelayed` case of `CLError.Code`.
     RegionMonitoringSetupDelayed = 6,
+    /// Matches the `RegionMonitoringResponseDelayed` case of `CLError.Code`.
     RegionMonitoringResponseDelayed = 7,
+    /// Matches the `GeocodeFoundNoResult` case of `CLError.Code`.
     GeocodeFoundNoResult = 8,
+    /// Matches the `GeocodeFoundPartialResult` case of `CLError.Code`.
     GeocodeFoundPartialResult = 9,
+    /// Matches the `GeocodeCanceled` case of `CLError.Code`.
     GeocodeCanceled = 10,
+    /// Matches the `DeferredFailed` case of `CLError.Code`.
     DeferredFailed = 11,
+    /// Matches the `DeferredNotUpdatingLocation` case of `CLError.Code`.
     DeferredNotUpdatingLocation = 12,
+    /// Matches the `DeferredAccuracyTooLow` case of `CLError.Code`.
     DeferredAccuracyTooLow = 13,
+    /// Matches the `DeferredDistanceFiltered` case of `CLError.Code`.
     DeferredDistanceFiltered = 14,
+    /// Matches the `DeferredCanceled` case of `CLError.Code`.
     DeferredCanceled = 15,
+    /// Matches the `RangingUnavailable` case of `CLError.Code`.
     RangingUnavailable = 16,
+    /// Matches the `RangingFailure` case of `CLError.Code`.
     RangingFailure = 17,
+    /// Matches the `PromptDeclined` case of `CLError.Code`.
     PromptDeclined = 18,
+    /// Matches the `HistoricalLocationError` case of `CLError.Code`.
     HistoricalLocationError = 19,
 }
 
 impl CLErrorCode {
     #[must_use]
+    /// Builds a `CLErrorCode` from a raw `CLError.Code` value.
     pub const fn from_raw(raw: i32) -> Option<Self> {
         match raw {
             0 => Some(Self::LocationUnknown),
@@ -85,6 +112,7 @@ impl From<CLErrorCode> for i32 {
 
 impl CoreLocationError {
     #[must_use]
+    /// Returns the bridged status code for this error.
     pub const fn code(&self) -> i32 {
         match self {
             Self::InvalidArgument(_) => ffi::status::INVALID_ARGUMENT,
@@ -95,6 +123,7 @@ impl CoreLocationError {
     }
 
     #[must_use]
+    /// Returns the bridged error message.
     pub fn message(&self) -> &str {
         match self {
             Self::InvalidArgument(message)
@@ -117,6 +146,7 @@ static ERROR_DOMAIN: OnceLock<String> = OnceLock::new();
 static ALTERNATE_REGION_KEY: OnceLock<String> = OnceLock::new();
 
 #[must_use]
+/// Returns `CLErrorDomain`.
 pub fn error_domain() -> &'static str {
     ERROR_DOMAIN
         .get_or_init(|| take_owned_c_string(unsafe { ffi::cl_error_domain() }))
@@ -124,6 +154,7 @@ pub fn error_domain() -> &'static str {
 }
 
 #[must_use]
+/// Returns `CLErrorUserInfoAlternateRegionKey`.
 pub fn alternate_region_key() -> &'static str {
     ALTERNATE_REGION_KEY
         .get_or_init(|| take_owned_c_string(unsafe {

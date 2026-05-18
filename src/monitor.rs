@@ -12,10 +12,15 @@ use crate::private::{decode_json, decode_optional_json, to_cstring};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(from = "i32", into = "i32")]
 #[repr(i32)]
+/// Wraps `CLMonitoringState`.
 pub enum MonitoringState {
+    /// Matches the `Unknown` case of `CLMonitoringState`.
     Unknown = 0,
+    /// Matches the `Satisfied` case of `CLMonitoringState`.
     Satisfied = 1,
+    /// Matches the `Unsatisfied` case of `CLMonitoringState`.
     Unsatisfied = 2,
+    /// Matches the `Unmonitored` case of `CLMonitoringState`.
     Unmonitored = 3,
 }
 
@@ -33,6 +38,7 @@ impl From<MonitoringState> for i32 {
 
 impl MonitoringState {
     #[must_use]
+    /// Builds a `MonitoringState` from a raw `CLMonitoringState` value.
     pub const fn from_raw(raw: i32) -> Self {
         match raw {
             1 => Self::Satisfied,
@@ -44,24 +50,37 @@ impl MonitoringState {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+/// Snapshot of `CLCircularGeographicCondition`.
 pub struct CircularGeographicConditionSnapshot {
+    /// Matches `CLCircularGeographicCondition.center`.
     pub center: Coordinate,
+    /// Matches `CLCircularGeographicCondition.radius`.
     pub radius: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+/// Snapshot of the public `CLCondition` family used by `CLMonitor`.
 pub enum ConditionSnapshot {
+    /// Snapshot of a `CLCircularGeographicCondition`.
     CircularGeographic {
+        /// Matches `CLCircularGeographicCondition.center`.
         center: Coordinate,
+        /// Matches `CLCircularGeographicCondition.radius`.
         radius: f64,
     },
+    /// Snapshot of a `CLBeaconIdentityCondition`.
     BeaconIdentity {
+        /// Matches `CLBeaconIdentityCondition.uuid`.
         uuid: String,
+        /// Matches `CLBeaconIdentityCondition.major`.
         major: Option<u16>,
+        /// Matches `CLBeaconIdentityCondition.minor`.
         minor: Option<u16>,
     },
+    /// Snapshot of an unsupported `CLCondition` subtype.
     Unknown {
+        /// Carries the `CoreLocation` runtime type name for the unsupported condition.
         type_name: String,
     },
 }
@@ -77,26 +96,44 @@ impl From<CircularGeographicConditionSnapshot> for ConditionSnapshot {
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Snapshot of `CLMonitoringEvent`.
 pub struct MonitoringEvent {
+    /// Matches `CLMonitoringEvent.identifier`.
     pub identifier: String,
+    /// Matches `CLMonitoringEvent.refinement`.
     pub refinement: Option<ConditionSnapshot>,
+    /// Matches `CLMonitoringEvent.state`.
     pub state: MonitoringState,
+    /// Matches `CLMonitoringEvent.date`.
     pub date: f64,
+    /// Matches `CLMonitoringEvent.authorizationDenied`.
     pub authorization_denied: bool,
+    /// Matches `CLMonitoringEvent.authorizationDeniedGlobally`.
     pub authorization_denied_globally: bool,
+    /// Matches `CLMonitoringEvent.authorizationRestricted`.
     pub authorization_restricted: bool,
+    /// Matches `CLMonitoringEvent.insufficientlyInUse`.
     pub insufficiently_in_use: bool,
+    /// Matches `CLMonitoringEvent.accuracyLimited`.
     pub accuracy_limited: bool,
+    /// Matches `CLMonitoringEvent.conditionUnsupported`.
     pub condition_unsupported: bool,
+    /// Matches `CLMonitoringEvent.conditionLimitExceeded`.
     pub condition_limit_exceeded: bool,
+    /// Matches `CLMonitoringEvent.persistenceUnavailable`.
     pub persistence_unavailable: bool,
+    /// Matches `CLMonitoringEvent.serviceSessionRequired`.
     pub service_session_required: bool,
+    /// Matches `CLMonitoringEvent.authorizationRequestInProgress`.
     pub authorization_request_in_progress: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Snapshot of `CLMonitoringRecord`.
 pub struct MonitoringRecord {
+    /// Matches `CLMonitoringRecord.condition`.
     pub condition: ConditionSnapshot,
+    /// Matches `CLMonitoringRecord.lastEvent`.
     pub last_event: MonitoringEvent,
 }
 
@@ -111,15 +148,19 @@ pub(crate) mod private {
     pub trait MonitorDelegateSealed {}
 }
 
+/// Trait implemented by wrappers around `CLCondition`.
 pub trait Condition: private::ConditionSealed {
+    /// Returns the retained `CoreLocation` object pointer accepted by the bridged `CLMonitor` APIs.
     fn as_raw(&self) -> *mut c_void;
 }
 
+/// Wraps `CLCircularGeographicCondition`.
 pub struct CircularGeographicCondition {
     raw: *mut c_void,
 }
 
 impl CircularGeographicCondition {
+    /// Wraps `CLCircularGeographicCondition.init(center:radius:)`.
     pub fn new(center: Coordinate, radius: f64) -> Result<Self, CoreLocationError> {
         let mut raw = core::ptr::null_mut();
         let mut error = core::ptr::null_mut();
@@ -139,6 +180,7 @@ impl CircularGeographicCondition {
         }
     }
 
+    /// Returns a snapshot of the wrapped `CLCircularGeographicCondition`.
     pub fn snapshot(&self) -> Result<CircularGeographicConditionSnapshot, CoreLocationError> {
         let json = unsafe { ffi::cl_circular_geographic_condition_json(self.raw) };
         decode_json(json)
@@ -158,7 +200,9 @@ impl Condition for CircularGeographicCondition {
     }
 }
 
+/// Rust companion to `CLMonitor.events`.
 pub trait MonitorDelegate: Send + private::MonitorDelegateSealed {
+    /// Handles a value emitted by `CLMonitor.events`.
     fn did_receive_event(&mut self, event: MonitoringEvent) {
         let _ = event;
     }
@@ -166,17 +210,20 @@ pub trait MonitorDelegate: Send + private::MonitorDelegateSealed {
 
 type MonitoringEventHandler = Box<dyn FnMut(MonitoringEvent) + Send + 'static>;
 
+/// Closure-based `MonitorDelegate`.
 pub struct MonitorCallbacks {
     event: Option<MonitoringEventHandler>,
 }
 
 impl MonitorCallbacks {
     #[must_use]
+    /// Creates an empty closure-based companion to `CLMonitor.events`.
     pub fn new() -> Self {
         Self { event: None }
     }
 
     #[must_use]
+    /// Registers a closure for values emitted by `CLMonitor.events`.
     pub fn on_event(mut self, callback: impl FnMut(MonitoringEvent) + Send + 'static) -> Self {
         self.event = Some(Box::new(callback));
         self
@@ -203,21 +250,25 @@ struct CallbackState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Helper used to open a named `CLMonitor`.
 pub struct MonitorConfiguration {
     name: String,
 }
 
 impl MonitorConfiguration {
     #[must_use]
+    /// Creates a helper configuration for a named `CLMonitor`.
     pub fn new(name: impl Into<String>) -> Self {
         Self { name: name.into() }
     }
 
     #[must_use]
+    /// Returns the `CLMonitor` name that will be opened.
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Opens a `CLMonitor` using this configuration.
     pub fn open(&self) -> Result<Monitor, CoreLocationError> {
         Monitor::with_configuration(self.clone())
     }
@@ -229,6 +280,7 @@ impl MonitorConfiguration {
         Monitor::with_configuration_and_delegate(self.clone(), delegate)
     }
 
+    /// Opens a `CLMonitor` using this configuration and closure callbacks.
     pub fn open_with_callbacks(
         &self,
         callbacks: MonitorCallbacks,
@@ -237,6 +289,7 @@ impl MonitorConfiguration {
     }
 }
 
+/// Wraps `CLMonitor`.
 pub struct Monitor {
     raw: *mut c_void,
     name: String,
@@ -272,6 +325,7 @@ unsafe extern "C" fn monitor_trampoline(user_info: *mut c_void, payload_json: *c
 }
 
 impl Monitor {
+    /// Wraps `CLMonitor.init(name:)`.
     pub fn new(name: &str) -> Result<Self, CoreLocationError> {
         Self::with_configuration(MonitorConfiguration::new(name))
     }
@@ -283,6 +337,7 @@ impl Monitor {
         Self::with_configuration_and_delegate(MonitorConfiguration::new(name), delegate)
     }
 
+    /// Wraps `CLMonitor.init(name:)` with closure callbacks.
     pub fn with_callbacks(
         name: &str,
         callbacks: MonitorCallbacks,
@@ -290,6 +345,7 @@ impl Monitor {
         Self::with_delegate(name, callbacks)
     }
 
+    /// Opens the `CLMonitor` described by a `MonitorConfiguration`.
     pub fn with_configuration(
         configuration: MonitorConfiguration,
     ) -> Result<Self, CoreLocationError> {
@@ -306,6 +362,7 @@ impl Monitor {
         Self::new_inner(configuration, Some(Box::new(delegate)))
     }
 
+    /// Opens the `CLMonitor` described by a `MonitorConfiguration` with closure callbacks.
     pub fn with_configuration_and_callbacks(
         configuration: MonitorConfiguration,
         callbacks: MonitorCallbacks,
@@ -351,10 +408,12 @@ impl Monitor {
     }
 
     #[must_use]
+    /// Returns the wrapped `CLMonitor.name` value.
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Returns the identifiers currently registered in the wrapped `CLMonitor`.
     pub fn monitored_identifiers(&self) -> Result<Vec<String>, CoreLocationError> {
         let json = unsafe { ffi::cl_monitor_monitored_identifiers_json(self.raw) };
         decode_json(json)
@@ -408,6 +467,7 @@ impl Monitor {
         }
     }
 
+    /// Wraps `CLMonitor.remove(_:)`.
     pub fn remove_condition(&self, identifier: &str) -> Result<(), CoreLocationError> {
         let identifier = to_cstring(identifier)?;
         let mut error = core::ptr::null_mut();
@@ -420,6 +480,7 @@ impl Monitor {
         }
     }
 
+    /// Wraps `CLMonitor.record(for:)`.
     pub fn record(&self, identifier: &str) -> Result<Option<MonitoringRecord>, CoreLocationError> {
         let identifier = to_cstring(identifier)?;
         let json = unsafe { ffi::cl_monitor_record_json(self.raw, identifier.as_ptr()) };

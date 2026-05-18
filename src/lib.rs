@@ -5,7 +5,7 @@
 //! # API documentation
 //!
 //! Safe Rust bindings for Apple's
-//! [CoreLocation](https://developer.apple.com/documentation/corelocation)
+//! [`CoreLocation`](https://developer.apple.com/documentation/corelocation)
 //! framework.
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(
