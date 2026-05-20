@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.6] - 2026-05-20
+
+- Added in-`src/` unit tests across `authorization.rs`, `location.rs`, and `error.rs` (Tier 2 quality polish), providing fast `cargo test --lib` fail-fast signal alongside the existing integration tests under `tests/`.
+
 ## [0.3.5] - 2026-05-20
 
 - Widen `doom-fish-utils` dependency bound to `<0.4` so the 0.3.x SPSC-ring release resolves cleanly. No source changes.

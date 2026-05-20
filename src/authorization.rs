@@ -112,3 +112,70 @@ impl AuthorizationSnapshot {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn authorization_status_round_trips_known_raw_values() {
+        for status in [
+            AuthorizationStatus::NotDetermined,
+            AuthorizationStatus::Restricted,
+            AuthorizationStatus::Denied,
+            AuthorizationStatus::AuthorizedAlways,
+            AuthorizationStatus::AuthorizedWhenInUse,
+        ] {
+            assert_eq!(AuthorizationStatus::from_raw(i32::from(status)), status);
+            assert_eq!(AuthorizationStatus::from(i32::from(status)), status);
+        }
+    }
+
+    #[test]
+    fn authorization_status_defaults_unknown_values_to_not_determined() {
+        assert_eq!(AuthorizationStatus::from_raw(-1), AuthorizationStatus::NotDetermined);
+        assert_eq!(AuthorizationStatus::from_raw(99), AuthorizationStatus::NotDetermined);
+    }
+
+    #[test]
+    fn authorization_status_detects_authorized_cases() {
+        assert!(!AuthorizationStatus::NotDetermined.is_authorized());
+        assert!(!AuthorizationStatus::Denied.is_authorized());
+        assert!(AuthorizationStatus::AuthorizedAlways.is_authorized());
+        assert!(AuthorizationStatus::AuthorizedWhenInUse.is_authorized());
+    }
+
+    #[test]
+    fn accuracy_authorization_round_trips_known_raw_values() {
+        for accuracy in [
+            AccuracyAuthorization::FullAccuracy,
+            AccuracyAuthorization::ReducedAccuracy,
+        ] {
+            assert_eq!(AccuracyAuthorization::from_raw(i32::from(accuracy)), Some(accuracy));
+            assert_eq!(AccuracyAuthorization::try_from(i32::from(accuracy)), Ok(accuracy));
+        }
+    }
+
+    #[test]
+    fn accuracy_authorization_try_from_rejects_unknown_values() {
+        assert_eq!(AccuracyAuthorization::from_raw(-1), None);
+        assert_eq!(AccuracyAuthorization::from_raw(2), None);
+        assert_eq!(
+            AccuracyAuthorization::try_from(2),
+            Err("invalid accuracy authorization value")
+        );
+    }
+
+    #[test]
+    fn authorization_snapshot_constructor_sets_fields() {
+        let snapshot = AuthorizationSnapshot::new(
+            AuthorizationStatus::AuthorizedWhenInUse,
+            Some(AccuracyAuthorization::ReducedAccuracy),
+            Some(true),
+        );
+
+        assert_eq!(snapshot.status, AuthorizationStatus::AuthorizedWhenInUse);
+        assert_eq!(snapshot.accuracy, Some(AccuracyAuthorization::ReducedAccuracy));
+        assert_eq!(snapshot.authorized_for_widget_updates, Some(true));
+    }
+}

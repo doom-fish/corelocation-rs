@@ -10,7 +10,7 @@ checksum = "f18f9f1747c86d067ade130403a7bfc1ba3609de64d4b69ea0ac3296f3052d08"
 
 [[package]]
 name = "corelocation-rs"
-version = "0.3.5"
+version = "0.3.6"
 dependencies = [
  "apple-cf",
  "doom-fish-utils",
@@ -37,7 +37,7 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "doom-fish-utils"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "crossbeam-queue",
  "futures-util",

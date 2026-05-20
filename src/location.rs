@@ -137,3 +137,81 @@ impl From<Location> for LocationDetails {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn assert_close(left: f64, right: f64) {
+        assert!((left - right).abs() < 1.0e-6, "left={left}, right={right}");
+    }
+
+    #[test]
+    fn coordinate_constructor_sets_fields() {
+        let coordinate = Coordinate::new(37.3349, -122.0090);
+
+        assert_close(coordinate.latitude, 37.3349);
+        assert_close(coordinate.longitude, -122.0090);
+    }
+
+    #[test]
+    fn coordinate_validation_accepts_boundary_values() {
+        assert!(Coordinate::new(-90.0, -180.0).is_valid());
+        assert!(Coordinate::new(90.0, 180.0).is_valid());
+    }
+
+    #[test]
+    fn coordinate_validation_rejects_out_of_range_values() {
+        assert!(!Coordinate::new(90.1, 0.0).is_valid());
+        assert!(!Coordinate::new(0.0, 180.1).is_valid());
+    }
+
+    #[test]
+    fn coordinate_validation_rejects_non_finite_values() {
+        assert!(!Coordinate::new(f64::NAN, 0.0).is_valid());
+        assert!(!Coordinate::new(0.0, f64::INFINITY).is_valid());
+    }
+
+    #[test]
+    fn location_from_coordinate_sets_default_snapshot_values() {
+        let coordinate = Coordinate::new(37.3349, -122.0090);
+        let location = Location::from_coordinate(coordinate);
+
+        assert_eq!(location.coordinate, coordinate);
+        assert_close(location.altitude, 0.0);
+        assert_close(location.horizontal_accuracy, -1.0);
+        assert_close(location.vertical_accuracy, -1.0);
+        assert_close(location.speed, -1.0);
+        assert_close(location.course, -1.0);
+        assert_close(location.timestamp, 0.0);
+    }
+
+    #[test]
+    fn distance_to_self_is_zero() {
+        let location = Location::from_coordinate(Coordinate::new(37.3349, -122.0090));
+
+        assert_close(location.distance_to(&location), 0.0);
+    }
+
+    #[test]
+    fn distance_between_known_points_is_reasonable() {
+        let apple_park = Location::from_coordinate(Coordinate::new(37.3349, -122.0090));
+        let ferry_building = Location::from_coordinate(Coordinate::new(37.7955, -122.3937));
+        let distance = apple_park.distance_to(&ferry_building);
+
+        assert!((60_000.0..65_000.0).contains(&distance), "distance={distance}");
+    }
+
+    #[test]
+    fn location_details_from_location_starts_without_optional_metadata() {
+        let location = Location::from_coordinate(Coordinate::new(37.3349, -122.0090));
+        let details = LocationDetails::from(location.clone());
+
+        assert_eq!(details.location, location);
+        assert_eq!(details.ellipsoidal_altitude, None);
+        assert_eq!(details.course_accuracy, None);
+        assert_eq!(details.speed_accuracy, None);
+        assert_eq!(details.floor, None);
+        assert_eq!(details.source_information, None);
+    }
+}

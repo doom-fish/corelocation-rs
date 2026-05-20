@@ -187,3 +187,93 @@ pub(crate) fn from_status_message(status: i32, message: String) -> CoreLocationE
         code => CoreLocationError::Unknown { code, message },
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cl_error_code_round_trips_all_known_values() {
+        for code in [
+            CLErrorCode::LocationUnknown,
+            CLErrorCode::Denied,
+            CLErrorCode::Network,
+            CLErrorCode::HeadingFailure,
+            CLErrorCode::RegionMonitoringDenied,
+            CLErrorCode::RegionMonitoringFailure,
+            CLErrorCode::RegionMonitoringSetupDelayed,
+            CLErrorCode::RegionMonitoringResponseDelayed,
+            CLErrorCode::GeocodeFoundNoResult,
+            CLErrorCode::GeocodeFoundPartialResult,
+            CLErrorCode::GeocodeCanceled,
+            CLErrorCode::DeferredFailed,
+            CLErrorCode::DeferredNotUpdatingLocation,
+            CLErrorCode::DeferredAccuracyTooLow,
+            CLErrorCode::DeferredDistanceFiltered,
+            CLErrorCode::DeferredCanceled,
+            CLErrorCode::RangingUnavailable,
+            CLErrorCode::RangingFailure,
+            CLErrorCode::PromptDeclined,
+            CLErrorCode::HistoricalLocationError,
+        ] {
+            assert_eq!(CLErrorCode::from_raw(i32::from(code)), Some(code));
+            assert_eq!(CLErrorCode::try_from(i32::from(code)), Ok(code));
+        }
+    }
+
+    #[test]
+    fn cl_error_code_try_from_rejects_unknown_values() {
+        assert_eq!(CLErrorCode::from_raw(-1), None);
+        assert_eq!(CLErrorCode::from_raw(20), None);
+        assert_eq!(CLErrorCode::try_from(20), Err(20));
+    }
+
+    #[test]
+    fn from_status_message_maps_known_bridge_statuses() {
+        assert_eq!(
+            from_status_message(ffi::status::INVALID_ARGUMENT, "bad input".to_owned()),
+            CoreLocationError::InvalidArgument("bad input".to_owned())
+        );
+        assert_eq!(
+            from_status_message(ffi::status::FRAMEWORK_ERROR, "framework".to_owned()),
+            CoreLocationError::FrameworkError("framework".to_owned())
+        );
+        assert_eq!(
+            from_status_message(ffi::status::TIMED_OUT, "timeout".to_owned()),
+            CoreLocationError::TimedOut("timeout".to_owned())
+        );
+        assert_eq!(
+            from_status_message(7, "other".to_owned()),
+            CoreLocationError::Unknown {
+                code: 7,
+                message: "other".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn corelocation_error_display_includes_message_and_code() {
+        assert_eq!(
+            CoreLocationError::FrameworkError("denied".to_owned()).to_string(),
+            format!("denied (code {})", ffi::status::FRAMEWORK_ERROR)
+        );
+    }
+
+    #[test]
+    fn error_domain_is_stable_and_nonempty() {
+        let first = error_domain();
+        let second = error_domain();
+
+        assert!(!first.is_empty());
+        assert!(std::ptr::eq(first, second));
+    }
+
+    #[test]
+    fn alternate_region_key_is_stable_and_nonempty() {
+        let first = alternate_region_key();
+        let second = alternate_region_key();
+
+        assert!(!first.is_empty());
+        assert!(std::ptr::eq(first, second));
+    }
+}
