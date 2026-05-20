@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.5] - 2026-05-20
+
+- Widen `doom-fish-utils` dependency bound to `<0.4` so the 0.3.x SPSC-ring release resolves cleanly. No source changes.
+
 ## [0.3.4] - 2026-05-18
 
 - Added `///` documentation across the public CoreLocation wrapper surface, lifting rustdoc coverage from 7.0% to 93.4%.
