@@ -83,8 +83,4 @@ impl BeaconIdentityConstraint {
     }
 }
 
-impl Drop for BeaconIdentityConstraint {
-    fn drop(&mut self) {
-        unsafe { ffi::cl_object_release(self.raw) };
-    }
-}
+crate::utils::retained::cl_retained!(BeaconIdentityConstraint);

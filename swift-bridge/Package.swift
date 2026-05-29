@@ -16,8 +16,7 @@ let package = Package(
     targets: [
         .target(
             name: "CoreLocationBridge",
-            path: "Sources/CoreLocationBridge",
-            publicHeadersPath: "include"
+            path: "Sources/CoreLocationBridge"
         )
     ]
 )

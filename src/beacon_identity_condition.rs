@@ -91,11 +91,7 @@ impl BeaconIdentityCondition {
     }
 }
 
-impl Drop for BeaconIdentityCondition {
-    fn drop(&mut self) {
-        unsafe { ffi::cl_object_release(self.raw) };
-    }
-}
+crate::utils::retained::cl_retained!(BeaconIdentityCondition);
 
 impl ConditionSealed for BeaconIdentityCondition {}
 impl Condition for BeaconIdentityCondition {

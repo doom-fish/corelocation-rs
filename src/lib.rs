@@ -35,6 +35,8 @@ mod private;
 pub mod region;
 pub mod visit;
 
+pub(crate) mod utils;
+
 #[cfg(feature = "async")]
 #[cfg_attr(docsrs, doc(cfg(feature = "async")))]
 pub mod async_api;

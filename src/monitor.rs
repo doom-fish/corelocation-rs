@@ -187,11 +187,7 @@ impl CircularGeographicCondition {
     }
 }
 
-impl Drop for CircularGeographicCondition {
-    fn drop(&mut self) {
-        unsafe { ffi::cl_object_release(self.raw) };
-    }
-}
+crate::utils::retained::cl_retained!(CircularGeographicCondition);
 
 impl private::ConditionSealed for CircularGeographicCondition {}
 impl Condition for CircularGeographicCondition {

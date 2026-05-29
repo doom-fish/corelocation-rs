@@ -218,11 +218,7 @@ impl CircularRegion {
     }
 }
 
-impl Drop for CircularRegion {
-    fn drop(&mut self) {
-        unsafe { ffi::cl_object_release(self.raw) };
-    }
-}
+crate::utils::retained::cl_retained!(CircularRegion);
 
 impl private::Sealed for CircularRegion {}
 impl MonitorableRegion for CircularRegion {
@@ -395,11 +391,7 @@ impl BeaconRegion {
     }
 }
 
-impl Drop for BeaconRegion {
-    fn drop(&mut self) {
-        unsafe { ffi::cl_object_release(self.raw) };
-    }
-}
+crate::utils::retained::cl_retained!(BeaconRegion);
 
 impl private::Sealed for BeaconRegion {}
 impl MonitorableRegion for BeaconRegion {
