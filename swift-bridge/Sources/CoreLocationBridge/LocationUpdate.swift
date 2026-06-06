@@ -8,6 +8,11 @@ private final class CLLocationUpdaterBox: NSObject {
     private let userInfo: UnsafeMutableRawPointer?
     private var task: Task<Void, Never>?
     private var invalidated = false
+    // Signalled by the task body's defer block once it has fully exited.
+    // invalidate()/deinit block on this so the box is only torn down after the
+    // last possible callback(userInfo, …) call returns, preventing a
+    // use-after-free of the Rust-side userInfo after callback_state is freed.
+    private var taskDone: DispatchSemaphore?
 
     init(
         configuration: CLLocationUpdate.LiveConfiguration,
@@ -28,7 +33,10 @@ private final class CLLocationUpdaterBox: NSObject {
 
     func resume() {
         guard task == nil, !invalidated else { return }
+        let done = DispatchSemaphore(value: 0)
+        taskDone = done
         task = Task { [configuration] in
+            defer { done.signal() }
             do {
                 for try await update in CLLocationUpdate.liveUpdates(configuration) {
                     if Task.isCancelled || invalidated {
@@ -58,7 +66,17 @@ private final class CLLocationUpdaterBox: NSObject {
 
     func invalidate() {
         invalidated = true
-        pause()
+        task?.cancel()
+        // Block until the in-flight task body has fully exited so that no
+        // pending callback(userInfo, …) call races against the Rust side
+        // freeing callback_state once cl_object_release returns. The 2-second
+        // timeout is a safety net in case liveUpdates does not honour
+        // cooperative cancellation (should never fire in practice).
+        if let done = taskDone {
+            _ = done.wait(timeout: .now() + 2)
+            taskDone = nil
+        }
+        task = nil
     }
 
     deinit {
