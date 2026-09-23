@@ -23,6 +23,7 @@ pub mod beacon_region;
 pub mod error;
 pub mod ffi;
 pub mod floor;
+#[allow(deprecated)]
 pub mod geocoder;
 pub mod heading;
 pub mod location;
@@ -49,6 +50,7 @@ pub use beacon_identity_constraint::{
 pub use beacon_region::{Beacon, BeaconRegion, Proximity};
 pub use error::{CLErrorCode, CoreLocationError};
 pub use floor::{Floor, LocationSourceInformation};
+#[allow(deprecated)]
 pub use geocoder::{Geocoder, PostalAddress};
 pub use heading::Heading;
 pub use location::{Coordinate, Location, LocationDetails};
@@ -83,6 +85,7 @@ pub mod prelude {
     pub use crate::beacon_region::{Beacon, BeaconRegion, Proximity};
     pub use crate::error::{CLErrorCode, CoreLocationError};
     pub use crate::floor::{Floor, LocationSourceInformation};
+    #[allow(deprecated)]
     pub use crate::geocoder::{Geocoder, PostalAddress};
     pub use crate::heading::Heading;
     pub use crate::location::{Coordinate, Location, LocationDetails};

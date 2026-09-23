@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use corelocation::prelude::*;
 
 #[test]

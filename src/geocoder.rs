@@ -31,6 +31,10 @@ pub struct PostalAddress {
 }
 
 /// Wraps `CLGeocoder`.
+#[deprecated(
+    since = "0.4.0",
+    note = "CLGeocoder is deprecated in macOS 26; use MKGeocodingRequest and MKReverseGeocodingRequest from the `mapkit` crate"
+)]
 pub struct Geocoder {
     raw: *mut c_void,
 }

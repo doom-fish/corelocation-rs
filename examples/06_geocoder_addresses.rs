@@ -1,3 +1,5 @@
+#![allow(deprecated)]
+
 use corelocation::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
