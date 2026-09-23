@@ -138,6 +138,43 @@ final class CLTaskGate: @unchecked Sendable {
     }
 }
 
+enum CLCompletionOutcome {
+    case success(String?)
+    case failure(String)
+}
+
+final class CLCompletionResult: @unchecked Sendable {
+    private let lock = NSLock()
+    private let semaphore = DispatchSemaphore(value: 0)
+    private var outcome: CLCompletionOutcome?
+
+    func finish(_ value: CLCompletionOutcome) {
+        lock.lock()
+        let first = outcome == nil
+        if first {
+            outcome = value
+        }
+        lock.unlock()
+        if first {
+            semaphore.signal()
+        }
+    }
+
+    func wait(seconds: Double, runningMainLoop: Bool) -> CLCompletionOutcome? {
+        let deadline = DispatchTime.now() + seconds
+        if runningMainLoop {
+            while semaphore.wait(timeout: .now()) == .timedOut, DispatchTime.now() < deadline {
+                _ = RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.05))
+            }
+        } else {
+            _ = semaphore.wait(timeout: deadline)
+        }
+        lock.lock()
+        defer { lock.unlock() }
+        return outcome
+    }
+}
+
 final class CLDeliveryThread: Thread {
     static let shared: CLDeliveryThread = {
         let thread = CLDeliveryThread()

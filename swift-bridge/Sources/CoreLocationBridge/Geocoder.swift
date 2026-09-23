@@ -31,35 +31,35 @@ public func cl_geocoder_cancel(_ geocoderPtr: UnsafeMutableRawPointer?) {
 }
 
 private func cl_wait_for_geocoding(
-    timeoutSeconds: Int = 5,
+    geocoder: CLGeocoder,
+    timeoutSeconds: Double = 5,
     work: (@escaping ([CLPlacemark]?, Error?) -> Void) -> Void,
     outJSON: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>,
     errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
     outJSON.pointee = nil
-    let semaphore = DispatchSemaphore(value: 0)
-    var status = CL_OK
-    var payload = "[]"
+    let result = CLCompletionResult()
 
     work { placemarks, error in
-        defer { semaphore.signal() }
         if let error {
-            status = CL_FRAMEWORK_ERROR
-            cl_write_error(errorOut, error.localizedDescription)
-            return
+            result.finish(.failure(error.localizedDescription))
+        } else {
+            result.finish(.success(cl_json_string((placemarks ?? []).map(cl_placemark_object))))
         }
-        payload = cl_json_string((placemarks ?? []).map(cl_placemark_object))
     }
 
-    if semaphore.wait(timeout: .now() + .seconds(timeoutSeconds)) == .timedOut {
+    switch result.wait(seconds: timeoutSeconds, runningMainLoop: Thread.isMainThread) {
+    case nil:
+        geocoder.cancelGeocode()
         cl_write_error(errorOut, "CoreLocation geocoding timed out")
         return CL_TIMED_OUT
+    case .failure(let message):
+        cl_write_error(errorOut, message)
+        return CL_FRAMEWORK_ERROR
+    case .success(let payload):
+        outJSON.pointee = cl_string(payload ?? "[]")
+        return CL_OK
     }
-
-    if status == CL_OK {
-        outJSON.pointee = cl_string(payload)
-    }
-    return status
 }
 
 private func cl_postal_address(
@@ -104,6 +104,7 @@ public func cl_geocoder_geocode_address_string(
 
     let address = String(cString: addressPtr)
     return cl_wait_for_geocoding(
+        geocoder: geocoder,
         work: { completion in geocoder.geocodeAddressString(address, completionHandler: completion) },
         outJSON: outPlacemarkJSON,
         errorOut: errorOut
@@ -128,6 +129,7 @@ public func cl_geocoder_geocode_address_string_in_region(
     let region: CLRegion? = regionPtr.map(cl_borrow)
     let locale = cl_locale(localeIdentifierPtr)
     return cl_wait_for_geocoding(
+        geocoder: geocoder,
         work: { completion in
             if let locale {
                 geocoder.geocodeAddressString(
@@ -180,6 +182,7 @@ public func cl_geocoder_reverse_geocode_coordinates_locale(
     let location = CLLocation(latitude: latitude, longitude: longitude)
     let locale = cl_locale(localeIdentifierPtr)
     return cl_wait_for_geocoding(
+        geocoder: geocoder,
         work: { completion in
             if let locale {
                 geocoder.reverseGeocodeLocation(
@@ -214,6 +217,7 @@ public func cl_geocoder_geocode_postal_address_json(
 
     let locale = cl_locale(localeIdentifierPtr)
     return cl_wait_for_geocoding(
+        geocoder: geocoder,
         work: { completion in
             if let locale {
                 geocoder.geocodePostalAddress(

@@ -378,24 +378,30 @@ public func cl_manager_request_temporary_full_accuracy_authorization(
         return CL_FRAMEWORK_ERROR
     }
 
-    let semaphore = DispatchSemaphore(value: 0)
-    var status = CL_OK
-    box.manager.requestTemporaryFullAccuracyAuthorization(
-        withPurposeKey: String(cString: purposeKeyPtr)
-    ) { error in
-        if let error {
-            status = CL_FRAMEWORK_ERROR
-            cl_write_error(errorOut, error.localizedDescription)
-        }
-        semaphore.signal()
+    let purposeKey = String(cString: purposeKeyPtr)
+    guard !CLDeliveryThread.shared.isCurrent else {
+        cl_write_error(
+            errorOut,
+            "temporary full accuracy authorization cannot wait inside a CoreLocation callback"
+        )
+        return CL_FRAMEWORK_ERROR
     }
 
-    if semaphore.wait(timeout: .now() + .seconds(30)) == .timedOut {
+    let result = CLCompletionResult()
+    box.manager.requestTemporaryFullAccuracyAuthorization(withPurposeKey: purposeKey) { error in
+        result.finish(error.map { .failure($0.localizedDescription) } ?? .success(nil))
+    }
+
+    switch result.wait(seconds: 30, runningMainLoop: false) {
+    case nil:
         cl_write_error(errorOut, "temporary full accuracy authorization timed out")
         return CL_TIMED_OUT
+    case .failure(let message):
+        cl_write_error(errorOut, message)
+        return CL_FRAMEWORK_ERROR
+    case .success:
+        return CL_OK
     }
-
-    return status
 }
 
 @_cdecl("cl_manager_start_updating_location")
