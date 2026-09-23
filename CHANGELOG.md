@@ -1,5 +1,76 @@
 # Changelog
 
+All notable changes to `corelocation-rs` are documented here.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.4.0] - Unreleased
+
+### Security
+
+- Dropping a `LocationUpdater` after `resume()` no longer frees the callback
+  state while the live-update task keeps calling it. Drop now invalidates the
+  updater (cancelling the task and waiting for it) before releasing it.
+- Callback and stream state for `LocationManager`, `Monitor`,
+  `LocationUpdater`, `LocationManagerStream` and `MonitorStream` lives in a
+  reference-counted `CallbackContext` that the Swift side holds for as long as
+  it can call back, so an in-flight callback can no longer reach freed memory.
+- The geocoder and `request_temporary_full_accuracy_authorization` no longer
+  write their result into the caller's stack frame from a completion that
+  arrives after a timeout.
+
+### Fixed
+
+- `CLLocationManager` instances are created and torn down on a dedicated
+  CoreLocation thread with its own run loop, so delegate callbacks and stream
+  events arrive when the creating thread has no run loop (tokio workers, plain
+  threads). See the README's threading model.
+- Dropping a `LocationManagerStream` off the main thread no longer deadlocks
+  when the main thread is blocked (for example in a runtime's `block_on`); it
+  no longer calls `DispatchQueue.main.sync`.
+- Dropping a `Monitor` waits for its event task, as `MonitorStream` already
+  did, instead of racing an in-flight event.
+- `LocationUpdater::pause` waits for the task it stops, a later `resume` no
+  longer replaces the completion signal of an earlier run, and pausing no
+  longer reports `did_invalidate`. The invalidated flag is synchronised.
+- Geocoding timeouts cancel the request, and a geocoding call on the main
+  thread runs the main run loop while it waits (`CLGeocoder` completes only
+  on the main thread) instead of always timing out.
+- `request_temporary_full_accuracy_authorization` fails at once when called
+  from inside a CoreLocation callback instead of stalling for 30 seconds.
+- Framework raw values are converted without trapping, and a force unwrap in
+  the monitoring-state conversion is gone.
+- The `async_api` monitor doctest compiles again.
+
+### Changed
+
+- **Breaking:** the `ffi` constructors `cl_manager_new`, `cl_monitor_new`,
+  `cl_location_updater_new`, `cl_location_manager_stream_subscribe` and
+  `cl_monitor_stream_new` take context retain and release callbacks, and
+  managers are released with the new `cl_manager_release`.
+- **Breaking:** `LocationManager` and `LocationManagerStream` callbacks run on
+  the crate's CoreLocation thread instead of the thread that created the
+  manager.
+- `doom-fish-utils` is a regular dependency (`>=0.4.1, <0.5`); the `async`
+  feature no longer enables it. `apple-cf` requirement is `>=0.11, <0.12`.
+- `rust-version` is 1.82.
+- README and COVERAGE describe the threading model and say what the coverage
+  numbers measure; CLServiceSession, CLBackgroundActivitySession and the
+  location-push API are listed as unavailable on macOS.
+- Tests that open a `CLMonitor` are `#[ignore]`: CLMonitor persists state
+  under `~/Library/CoreLocation`, outside `target/`.
+
+### Deprecated
+
+- `Geocoder`: `CLGeocoder` is deprecated in macOS 26. Use
+  `MKGeocodingRequest` / `MKReverseGeocodingRequest` from the `mapkit` crate.
+
+## [0.3.7] - 2026-06-06
+
+- `LocationUpdater::invalidate` waits for the live-update task to exit before
+  returning; release boilerplate consolidated into one macro.
+
 ## [0.3.6] - 2026-05-20
 
 - Added in-`src/` unit tests across `authorization.rs`, `location.rs`, and `error.rs` (Tier 2 quality polish), providing fast `cargo test --lib` fail-fast signal alongside the existing integration tests under `tests/`.
