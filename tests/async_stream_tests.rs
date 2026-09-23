@@ -95,6 +95,7 @@ fn location_manager_stream_delivers_and_drops_off_the_main_thread() {
 // ── MonitorStream ─────────────────────────────────────────────────────────────
 
 #[test]
+#[ignore = "opens a CLMonitor, which persists monitor state under ~/Library/CoreLocation"]
 fn monitor_stream_fails_gracefully_on_old_macos() {
     // On macOS < 14 this returns an error; on macOS 14+ it succeeds.
     // Either way the test must not panic.
@@ -114,6 +115,7 @@ fn monitor_stream_fails_gracefully_on_old_macos() {
 }
 
 #[test]
+#[ignore = "opens a CLMonitor, which persists monitor state under ~/Library/CoreLocation"]
 fn monitor_stream_add_remove_condition_lifecycle() {
     use corelocation::location::Coordinate;
     use corelocation::monitor::CircularGeographicCondition;
@@ -138,6 +140,7 @@ fn monitor_stream_add_remove_condition_lifecycle() {
 }
 
 #[test]
+#[ignore = "opens a CLMonitor, which persists monitor state under ~/Library/CoreLocation"]
 fn monitor_stream_debug_impl() {
     if let Ok(stream) = MonitorStream::new("testmonitordebug", 4) {
         let s = format!("{stream:?}");
@@ -146,6 +149,7 @@ fn monitor_stream_debug_impl() {
 }
 
 #[test]
+#[ignore = "opens a CLMonitor, which persists monitor state under ~/Library/CoreLocation"]
 fn monitor_stream_is_closed_after_drop() {
     if let Ok(stream) = MonitorStream::new("testmonitorclose", 4) {
         assert!(!stream.is_closed());

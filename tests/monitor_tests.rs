@@ -48,6 +48,7 @@ fn run_monitor_smoke() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+#[ignore = "opens a CLMonitor, which persists monitor state under ~/Library/CoreLocation"]
 fn monitor_configuration_condition_and_record_smoke() {
     if let Err(error) = run_monitor_smoke() {
         println!("monitor APIs unavailable: {error}");
@@ -55,6 +56,7 @@ fn monitor_configuration_condition_and_record_smoke() {
 }
 
 #[test]
+#[ignore = "opens a CLMonitor, which persists monitor state under ~/Library/CoreLocation"]
 fn dropping_a_monitor_with_callbacks_waits_for_its_task_and_frees_the_delegate() {
     let events = Arc::new(AtomicUsize::new(0));
     let counter = Arc::clone(&events);
