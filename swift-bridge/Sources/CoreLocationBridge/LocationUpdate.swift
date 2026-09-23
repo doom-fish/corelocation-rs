@@ -4,79 +4,58 @@ import Foundation
 @available(macOS 14.0, *)
 private final class CLLocationUpdaterBox: NSObject {
     private let configuration: CLLocationUpdate.LiveConfiguration
-    private let callback: CLManagerEventCallback?
-    private let userInfo: UnsafeMutableRawPointer?
-    private var task: Task<Void, Never>?
+    private let sink: CLEventSink?
+    private let lock = NSLock()
+    private var gate: CLTaskGate?
     private var invalidated = false
-    // Signalled by the task body's defer block once it has fully exited.
-    // invalidate()/deinit block on this so the box is only torn down after the
-    // last possible callback(userInfo, …) call returns, preventing a
-    // use-after-free of the Rust-side userInfo after callback_state is freed.
-    private var taskDone: DispatchSemaphore?
 
-    init(
-        configuration: CLLocationUpdate.LiveConfiguration,
-        callback: CLManagerEventCallback?,
-        userInfo: UnsafeMutableRawPointer?
-    ) {
+    init(configuration: CLLocationUpdate.LiveConfiguration, sink: CLEventSink?) {
         self.configuration = configuration
-        self.callback = callback
-        self.userInfo = userInfo
+        self.sink = sink
         super.init()
     }
 
-    private func send(_ object: [String: Any]) {
-        guard let callback else { return }
-        let json = cl_json_string(object)
-        json.withCString { callback(userInfo, $0) }
-    }
-
     func resume() {
-        guard task == nil, !invalidated else { return }
-        let done = DispatchSemaphore(value: 0)
-        taskDone = done
-        task = Task { [configuration] in
-            defer { done.signal() }
+        lock.lock()
+        defer { lock.unlock() }
+        guard gate == nil, !invalidated else {
+            return
+        }
+        let gate = CLTaskGate()
+        let configuration = self.configuration
+        let sink = self.sink
+        gate.start { gate in
             do {
                 for try await update in CLLocationUpdate.liveUpdates(configuration) {
-                    if Task.isCancelled || invalidated {
-                        break
-                    }
-                    send([
+                    let object: [String: Any] = [
                         "event": "didUpdate",
                         "update": cl_location_update_object(update),
-                    ])
+                    ]
+                    guard gate.deliver({ sink?.send(object) }) else {
+                        return
+                    }
                 }
-            } catch {
-                if !invalidated {
-                    send(["event": "didInvalidate"])
-                }
-                return
-            }
-            if !invalidated {
-                send(["event": "didInvalidate"])
-            }
+            } catch {}
+            _ = gate.deliver { sink?.send(["event": "didInvalidate"]) }
         }
+        self.gate = gate
     }
 
     func pause() {
-        task?.cancel()
-        task = nil
+        lock.lock()
+        let gate = self.gate
+        self.gate = nil
+        lock.unlock()
+        gate?.stop()
     }
 
     func invalidate() {
+        lock.lock()
         invalidated = true
-        task?.cancel()
-        // Block until the in-flight task body has fully exited so that no
-        // pending callback(userInfo, …) call races against the Rust side
-        // freeing callback_state once cl_object_release returns. The 2-second
-        // timeout is a safety net in case liveUpdates does not honour
-        // cooperative cancellation (should never fire in practice).
-        if let done = taskDone {
-            _ = done.wait(timeout: .now() + 2)
-            taskDone = nil
-        }
-        task = nil
+        let gate = self.gate
+        self.gate = nil
+        lock.unlock()
+        gate?.stop()
     }
 
     deinit {
@@ -153,7 +132,9 @@ public func cl_location_updates_supported() -> Bool {
 public func cl_location_updater_new(
     _ configuration: Int32,
     _ callback: CLManagerEventCallback?,
-    _ userInfo: UnsafeMutableRawPointer?,
+    _ context: UnsafeMutableRawPointer?,
+    _ contextRetain: CLContextCallback?,
+    _ contextRelease: CLContextCallback?,
     _ outUpdater: UnsafeMutablePointer<UnsafeMutableRawPointer?>,
     _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
@@ -165,8 +146,12 @@ public func cl_location_updater_new(
 
     let updater = CLLocationUpdaterBox(
         configuration: cl_live_update_configuration(configuration),
-        callback: callback,
-        userInfo: userInfo
+        sink: CLEventSink(
+            callback: callback,
+            context: context,
+            retain: contextRetain,
+            release: contextRelease
+        )
     )
     outUpdater.pointee = cl_retain(updater)
     return CL_OK

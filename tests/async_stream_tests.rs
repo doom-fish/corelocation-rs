@@ -12,7 +12,10 @@
 
 #![cfg(feature = "async")]
 
-use corelocation::async_api::{LocationManagerStream, MonitorStream};
+use std::sync::mpsc;
+use std::time::Duration;
+
+use corelocation::async_api::{LocationManagerEvent, LocationManagerStream, MonitorStream};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -68,6 +71,25 @@ fn location_manager_stream_debug_impl() {
     let stream = LocationManagerStream::new(4).expect("LocationManagerStream::new");
     let s = format!("{stream:?}");
     assert!(s.contains("LocationManagerStream"));
+}
+
+#[test]
+fn location_manager_stream_delivers_and_drops_off_the_main_thread() {
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        let stream = LocationManagerStream::new(8).expect("LocationManagerStream::new");
+        let first = block(stream.next());
+        drop(stream);
+        let _ = sender.send(first);
+    });
+
+    let first = receiver
+        .recv_timeout(Duration::from_secs(20))
+        .expect("stream creation, first event and drop must finish while main is blocked");
+    assert!(
+        matches!(first, Some(LocationManagerEvent::DidChangeAuthorization(_))),
+        "unexpected first event: {first:?}"
+    );
 }
 
 // ── MonitorStream ─────────────────────────────────────────────────────────────

@@ -64,6 +64,7 @@
 
 use core::ffi::{c_char, c_void};
 
+use doom_fish_utils::callback_context::CallbackContext;
 use doom_fish_utils::stream::{AsyncStreamSender, BoundedAsyncStream, NextItem};
 use serde::Deserialize;
 
@@ -112,35 +113,28 @@ pub enum LocationManagerEvent {
     DidVisit(Visit),
 }
 
+type StreamContext<E> = CallbackContext<AsyncStreamSender<E>>;
+
 /// RAII guard: unsubscribes the Swift bridge and drops the sender on drop.
 struct LocationManagerStreamHandle {
     bridge_ptr: *mut c_void,
-    sender_ptr: *mut c_void,
+    context: StreamContext<LocationManagerEvent>,
 }
 
 // SAFETY: bridge_ptr is a retained Obj-C object managed by ARC; only one
-// owner (this handle) exists at a time. sender_ptr is a Box-leaked pointer
-// whose sole ownership belongs to this handle and is freed only in Drop.
+// owner (this handle) exists at a time. The sender lives in a reference-counted
+// CallbackContext that the Swift bridge retains for as long as it can call back.
 unsafe impl Send for LocationManagerStreamHandle {}
 unsafe impl Sync for LocationManagerStreamHandle {}
 
 impl Drop for LocationManagerStreamHandle {
     fn drop(&mut self) {
-        unsafe {
-            // SAFETY: bridge_ptr was created by cl_location_manager_stream_subscribe
-            // and is released exactly once here. The Swift implementation dispatches
-            // the release to the main thread, serialising with any in-flight
-            // CoreLocation delegate callback so that sender_ptr is only freed
-            // after the last possible callback has returned.
-            ffi::cl_location_manager_stream_unsubscribe(self.bridge_ptr);
-            // SAFETY: sender_ptr was created by Box::into_raw above and is
-            // reconstituted exactly once here. The unsubscribe call above ensures
-            // no further callbacks will dereference this pointer.
-            drop(Box::from_raw(
-                self.sender_ptr
-                    .cast::<AsyncStreamSender<LocationManagerEvent>>(),
-            ));
-        }
+        self.context.deactivate();
+        // SAFETY: bridge_ptr was created by cl_location_manager_stream_subscribe
+        // and is released exactly once here. The Swift side releases it on the
+        // CoreLocation delivery thread, the only thread that runs delegate
+        // callbacks, so no callback is in flight once this returns.
+        unsafe { ffi::cl_location_manager_stream_unsubscribe(self.bridge_ptr) };
     }
 }
 
@@ -157,59 +151,57 @@ struct AuthPayload {
 ///
 /// * `kind`         — discriminant (0–6, see AsyncStream.swift)
 /// * `payload_json` — NUL-terminated JSON string (non-null for all kinds above)
-/// * `ctx`          — raw `*mut AsyncStreamSender<LocationManagerEvent>`
+/// * `ctx`          — `CallbackContext<AsyncStreamSender<LocationManagerEvent>>` pointer
 extern "C" fn location_manager_stream_cb(
     kind: i32,
     payload_json: *const c_char,
     ctx: *mut c_void,
 ) {
-    let _ = std::panic::catch_unwind(|| {
-        if payload_json.is_null() {
-            return;
-        }
-        // SAFETY: ctx is the Box-leaked AsyncStreamSender pointer kept alive by
-        // LocationManagerStreamHandle until after unsubscribe returns. The Swift
-        // bridge ensures no callback fires after cl_location_manager_stream_unsubscribe
-        // completes (main-thread dispatch serialises release with in-flight callbacks).
-        let sender = unsafe { &*ctx.cast::<AsyncStreamSender<LocationManagerEvent>>() };
-        // SAFETY: payload_json is null-checked above; the Swift bridge always
-        // provides a valid NUL-terminated C string for the duration of this call.
-        let json = unsafe { core::ffi::CStr::from_ptr(payload_json) }.to_string_lossy();
+    if payload_json.is_null() {
+        return;
+    }
+    // SAFETY: payload_json is null-checked above; the Swift bridge always
+    // provides a valid NUL-terminated C string for the duration of this call.
+    let json = unsafe { core::ffi::CStr::from_ptr(payload_json) }.to_string_lossy();
+    // SAFETY: ctx is the stream's CallbackContext pointer; the Swift bridge holds a
+    // reference to it for as long as it can call this function.
+    let _ = unsafe {
+        StreamContext::<LocationManagerEvent>::with(ctx, "LocationManagerStream", |sender| {
+            let event: Option<LocationManagerEvent> = match kind {
+                0 => serde_json::from_str::<Vec<Location>>(&json)
+                    .ok()
+                    .map(LocationManagerEvent::DidUpdateLocations),
+                1 => serde_json::from_str::<LocationManagerErrorInfo>(&json)
+                    .ok()
+                    .map(LocationManagerEvent::DidFailWithError),
+                2 => serde_json::from_str::<AuthPayload>(&json).ok().map(|p| {
+                    let snapshot = AuthorizationSnapshot::new(
+                        AuthorizationStatus::from_raw(p.status.unwrap_or(0)),
+                        p.accuracy.and_then(AccuracyAuthorization::from_raw),
+                        p.authorized_for_widget_updates,
+                    );
+                    LocationManagerEvent::DidChangeAuthorization(snapshot)
+                }),
+                3 => serde_json::from_str::<Heading>(&json)
+                    .ok()
+                    .map(LocationManagerEvent::DidUpdateHeading),
+                4 => serde_json::from_str::<Region>(&json)
+                    .ok()
+                    .map(LocationManagerEvent::DidEnterRegion),
+                5 => serde_json::from_str::<Region>(&json)
+                    .ok()
+                    .map(LocationManagerEvent::DidExitRegion),
+                6 => serde_json::from_str::<Visit>(&json)
+                    .ok()
+                    .map(LocationManagerEvent::DidVisit),
+                _ => None,
+            };
 
-        let event: Option<LocationManagerEvent> = match kind {
-            0 => serde_json::from_str::<Vec<Location>>(&json)
-                .ok()
-                .map(LocationManagerEvent::DidUpdateLocations),
-            1 => serde_json::from_str::<LocationManagerErrorInfo>(&json)
-                .ok()
-                .map(LocationManagerEvent::DidFailWithError),
-            2 => serde_json::from_str::<AuthPayload>(&json).ok().map(|p| {
-                let snapshot = AuthorizationSnapshot::new(
-                    AuthorizationStatus::from_raw(p.status.unwrap_or(0)),
-                    p.accuracy.and_then(AccuracyAuthorization::from_raw),
-                    p.authorized_for_widget_updates,
-                );
-                LocationManagerEvent::DidChangeAuthorization(snapshot)
-            }),
-            3 => serde_json::from_str::<Heading>(&json)
-                .ok()
-                .map(LocationManagerEvent::DidUpdateHeading),
-            4 => serde_json::from_str::<Region>(&json)
-                .ok()
-                .map(LocationManagerEvent::DidEnterRegion),
-            5 => serde_json::from_str::<Region>(&json)
-                .ok()
-                .map(LocationManagerEvent::DidExitRegion),
-            6 => serde_json::from_str::<Visit>(&json)
-                .ok()
-                .map(LocationManagerEvent::DidVisit),
-            _ => None,
-        };
-
-        if let Some(ev) = event {
-            sender.push(ev);
-        }
-    });
+            if let Some(ev) = event {
+                sender.push(ev);
+            }
+        })
+    };
 }
 
 /// Async stream of [`LocationManagerEvent`]s backed by a dedicated
@@ -240,22 +232,19 @@ impl LocationManagerStream {
     /// when it overflows.
     pub fn new(capacity: usize) -> Result<Self, CoreLocationError> {
         let (stream, sender) = BoundedAsyncStream::new(capacity);
-        let sender_ptr = Box::into_raw(Box::new(sender)).cast::<c_void>();
+        let context = StreamContext::new(sender);
 
-        // SAFETY: location_manager_stream_cb is a valid extern "C" fn pointer;
-        // sender_ptr is a valid Box-leaked pointer that lives until Drop.
+        // SAFETY: location_manager_stream_cb is a valid extern "C" fn pointer; the
+        // Swift bridge retains the context for as long as it can call back.
         let bridge_ptr = unsafe {
-            ffi::cl_location_manager_stream_subscribe(location_manager_stream_cb, sender_ptr)
+            ffi::cl_location_manager_stream_subscribe(
+                location_manager_stream_cb,
+                context.as_ptr(),
+                Some(StreamContext::<LocationManagerEvent>::RETAIN),
+                Some(StreamContext::<LocationManagerEvent>::RELEASE),
+            )
         };
         if bridge_ptr.is_null() {
-            // Reclaim sender Box before returning the error.
-            unsafe {
-                // SAFETY: sender_ptr was just created by Box::into_raw above;
-                // subscribe failed so this is the only reclamation site.
-                drop(Box::from_raw(
-                    sender_ptr.cast::<AsyncStreamSender<LocationManagerEvent>>(),
-                ));
-            }
             return Err(CoreLocationError::FrameworkError(
                 "cl_location_manager_stream_subscribe returned null".into(),
             ));
@@ -263,7 +252,10 @@ impl LocationManagerStream {
 
         Ok(Self {
             inner: stream,
-            _handle: LocationManagerStreamHandle { bridge_ptr, sender_ptr },
+            _handle: LocationManagerStreamHandle {
+                bridge_ptr,
+                context,
+            },
             bridge_ptr,
         })
     }
@@ -347,30 +339,22 @@ pub enum MonitorStreamEvent {
 
 struct MonitorStreamHandle {
     bridge_ptr: *mut c_void,
-    sender_ptr: *mut c_void,
+    context: StreamContext<MonitorStreamEvent>,
 }
 
 // SAFETY: bridge_ptr is a retained Obj-C object managed by ARC; only one
-// owner (this handle) exists at a time. sender_ptr is a Box-leaked pointer
-// whose sole ownership belongs to this handle and is freed only in Drop.
+// owner (this handle) exists at a time. The sender lives in a reference-counted
+// CallbackContext that the Swift event task retains until it exits.
 unsafe impl Send for MonitorStreamHandle {}
 unsafe impl Sync for MonitorStreamHandle {}
 
 impl Drop for MonitorStreamHandle {
     fn drop(&mut self) {
-        unsafe {
-            // SAFETY: bridge_ptr was created by cl_monitor_stream_new and is
-            // released exactly once here. The Swift deinit cancels the event Task
-            // and blocks (via DispatchSemaphore) until the task body has fully
-            // exited, so no further callbacks can fire after this call returns.
-            ffi::cl_monitor_stream_unsubscribe(self.bridge_ptr);
-            // SAFETY: sender_ptr was created by Box::into_raw above and is
-            // reconstituted exactly once here. The unsubscribe call above ensures
-            // no further callbacks will dereference this pointer.
-            drop(Box::from_raw(
-                self.sender_ptr.cast::<AsyncStreamSender<MonitorStreamEvent>>(),
-            ));
-        }
+        self.context.deactivate();
+        // SAFETY: bridge_ptr was created by cl_monitor_stream_new and is
+        // released exactly once here. The Swift deinit cancels the event Task
+        // and waits for it to exit before returning.
+        unsafe { ffi::cl_monitor_stream_unsubscribe(self.bridge_ptr) };
     }
 }
 
@@ -378,39 +362,37 @@ impl Drop for MonitorStreamHandle {
 ///
 /// * `kind`         — 0 = `DidChange`, 1 = `Error`
 /// * `payload_json` — NUL-terminated JSON string
-/// * `ctx`          — raw `*mut AsyncStreamSender<MonitorStreamEvent>`
+/// * `ctx`          — `CallbackContext<AsyncStreamSender<MonitorStreamEvent>>` pointer
 extern "C" fn monitor_stream_cb(
     kind: i32,
     payload_json: *const c_char,
     ctx: *mut c_void,
 ) {
-    let _ = std::panic::catch_unwind(|| {
-        if payload_json.is_null() {
-            return;
-        }
-        // SAFETY: ctx is the Box-leaked AsyncStreamSender pointer kept alive by
-        // MonitorStreamHandle until after cl_monitor_stream_unsubscribe returns.
-        // The Swift deinit blocks until the task body exits, so this callback
-        // cannot fire after sender_ptr is freed.
-        let sender = unsafe { &*ctx.cast::<AsyncStreamSender<MonitorStreamEvent>>() };
-        // SAFETY: payload_json is null-checked above; the Swift bridge always
-        // provides a valid NUL-terminated C string for the duration of this call.
-        let json = unsafe { core::ffi::CStr::from_ptr(payload_json) }.to_string_lossy();
+    if payload_json.is_null() {
+        return;
+    }
+    // SAFETY: payload_json is null-checked above; the Swift bridge always
+    // provides a valid NUL-terminated C string for the duration of this call.
+    let json = unsafe { core::ffi::CStr::from_ptr(payload_json) }.to_string_lossy();
+    // SAFETY: ctx is the stream's CallbackContext pointer; the Swift event task
+    // holds a reference to it for as long as it can call this function.
+    let _ = unsafe {
+        StreamContext::<MonitorStreamEvent>::with(ctx, "MonitorStream", |sender| {
+            let event: Option<MonitorStreamEvent> = match kind {
+                0 => serde_json::from_str::<MonitoringEvent>(&json)
+                    .ok()
+                    .map(MonitorStreamEvent::DidChange),
+                1 => serde_json::from_str::<LocationManagerErrorInfo>(&json)
+                    .ok()
+                    .map(MonitorStreamEvent::Error),
+                _ => None,
+            };
 
-        let event: Option<MonitorStreamEvent> = match kind {
-            0 => serde_json::from_str::<MonitoringEvent>(&json)
-                .ok()
-                .map(MonitorStreamEvent::DidChange),
-            1 => serde_json::from_str::<LocationManagerErrorInfo>(&json)
-                .ok()
-                .map(MonitorStreamEvent::Error),
-            _ => None,
-        };
-
-        if let Some(ev) = event {
-            sender.push(ev);
-        }
-    });
+            if let Some(ev) = event {
+                sender.push(ev);
+            }
+        })
+    };
 }
 
 /// Async stream of [`MonitorStreamEvent`]s backed by a `CLMonitor`
@@ -440,37 +422,35 @@ impl MonitorStream {
     pub fn new(name: &str, capacity: usize) -> Result<Self, CoreLocationError> {
         let name_cstr = to_cstring(name)?;
         let (stream, sender) = BoundedAsyncStream::new(capacity);
-        let sender_ptr = Box::into_raw(Box::new(sender)).cast::<c_void>();
+        let context = StreamContext::new(sender);
 
         let mut bridge_ptr: *mut c_void = core::ptr::null_mut();
         let mut error: *mut c_char = core::ptr::null_mut();
 
         let status = unsafe {
-            // SAFETY: monitor_stream_cb is a valid extern "C" fn; sender_ptr is a
-            // valid Box-leaked pointer that lives until MonitorStreamHandle::drop.
+            // SAFETY: monitor_stream_cb is a valid extern "C" fn; the Swift bridge
+            // retains the context for as long as its event task can call back.
             ffi::cl_monitor_stream_new(
                 name_cstr.as_ptr(),
                 monitor_stream_cb,
-                sender_ptr,
+                context.as_ptr(),
+                Some(StreamContext::<MonitorStreamEvent>::RETAIN),
+                Some(StreamContext::<MonitorStreamEvent>::RELEASE),
                 &raw mut bridge_ptr,
                 &raw mut error,
             )
         };
 
         if status != ffi::status::OK {
-            unsafe {
-                // SAFETY: sender_ptr was just created by Box::into_raw above;
-                // cl_monitor_stream_new failed so this is the only reclamation site.
-                drop(Box::from_raw(
-                    sender_ptr.cast::<AsyncStreamSender<MonitorStreamEvent>>(),
-                ));
-            }
             return Err(from_swift(status, error));
         }
 
         Ok(Self {
             inner: stream,
-            _handle: MonitorStreamHandle { bridge_ptr, sender_ptr },
+            _handle: MonitorStreamHandle {
+                bridge_ptr,
+                context,
+            },
             bridge_ptr,
         })
     }
@@ -549,5 +529,60 @@ impl std::fmt::Debug for MonitorStream {
             .field("buffered_count", &self.buffered_count())
             .field("is_closed", &self.is_closed())
             .finish_non_exhaustive()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const AUTHORIZATION: &core::ffi::CStr =
+        c"{\"status\":2,\"accuracy\":1,\"authorized_for_widget_updates\":null}";
+    const MONITOR_ERROR: &core::ffi::CStr =
+        c"{\"domain\":\"kCLErrorDomain\",\"code\":1,\"message\":\"denied\"}";
+
+    #[test]
+    fn location_stream_callback_pushes_until_the_context_is_deactivated() {
+        let (stream, sender) = BoundedAsyncStream::new(4);
+        let context = StreamContext::new(sender);
+        let swift_reference = context.retained_ptr();
+
+        location_manager_stream_cb(2, AUTHORIZATION.as_ptr(), swift_reference);
+        location_manager_stream_cb(99, AUTHORIZATION.as_ptr(), swift_reference);
+        location_manager_stream_cb(2, core::ptr::null(), swift_reference);
+        context.deactivate();
+        location_manager_stream_cb(2, AUTHORIZATION.as_ptr(), swift_reference);
+        drop(context);
+
+        match stream.try_next() {
+            Some(LocationManagerEvent::DidChangeAuthorization(snapshot)) => {
+                assert_eq!(snapshot.status, AuthorizationStatus::Denied);
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
+        assert!(stream.try_next().is_none());
+        assert!(!stream.is_closed());
+        unsafe { (StreamContext::<LocationManagerEvent>::RELEASE)(swift_reference) };
+        assert!(stream.is_closed());
+    }
+
+    #[test]
+    fn monitor_stream_callback_pushes_until_the_context_is_deactivated() {
+        let (stream, sender) = BoundedAsyncStream::new(4);
+        let context = StreamContext::new(sender);
+        let swift_reference = context.retained_ptr();
+
+        monitor_stream_cb(1, MONITOR_ERROR.as_ptr(), swift_reference);
+        context.deactivate();
+        monitor_stream_cb(1, MONITOR_ERROR.as_ptr(), swift_reference);
+        drop(context);
+
+        match stream.try_next() {
+            Some(MonitorStreamEvent::Error(info)) => assert_eq!(info.code, 1),
+            other => panic!("unexpected event: {other:?}"),
+        }
+        assert!(stream.try_next().is_none());
+        unsafe { (StreamContext::<MonitorStreamEvent>::RELEASE)(swift_reference) };
+        assert!(stream.is_closed());
     }
 }

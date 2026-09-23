@@ -5,6 +5,7 @@ use core::ffi::{c_char, c_void};
 pub type EventCallback = unsafe extern "C" fn(user_info: *mut c_void, payload_json: *const c_char);
 pub type ManagerEventCallback = EventCallback;
 pub type LocationUpdateCallback = EventCallback;
+pub type ContextCallback = unsafe extern "C" fn(context: *mut c_void);
 
 extern "C" {
     pub fn cl_object_release(ptr: *mut c_void);
@@ -13,10 +14,13 @@ extern "C" {
 
     pub fn cl_manager_new(
         callback: Option<ManagerEventCallback>,
-        user_info: *mut c_void,
+        context: *mut c_void,
+        context_retain: Option<ContextCallback>,
+        context_release: Option<ContextCallback>,
         out_manager: *mut *mut c_void,
         error_out: *mut *mut c_char,
     ) -> i32;
+    pub fn cl_manager_release(manager: *mut c_void);
     pub fn cl_manager_set_desired_accuracy(manager: *mut c_void, accuracy: f64);
     pub fn cl_manager_desired_accuracy(manager: *mut c_void) -> f64;
     pub fn cl_manager_activity_type(manager: *mut c_void) -> i32;
@@ -238,7 +242,9 @@ extern "C" {
     pub fn cl_monitor_new(
         name: *const c_char,
         callback: Option<EventCallback>,
-        user_info: *mut c_void,
+        context: *mut c_void,
+        context_retain: Option<ContextCallback>,
+        context_release: Option<ContextCallback>,
         out_monitor: *mut *mut c_void,
         error_out: *mut *mut c_char,
     ) -> i32;
@@ -267,6 +273,8 @@ extern "C" {
     pub fn cl_location_manager_stream_subscribe(
         on_event: extern "C" fn(i32, *const c_char, *mut c_void),
         ctx: *mut c_void,
+        context_retain: Option<ContextCallback>,
+        context_release: Option<ContextCallback>,
     ) -> *mut c_void;
     pub fn cl_location_manager_stream_unsubscribe(handle: *mut c_void);
     pub fn cl_location_manager_stream_start_updating_location(handle: *mut c_void);
@@ -280,6 +288,8 @@ extern "C" {
         name: *const c_char,
         on_event: extern "C" fn(i32, *const c_char, *mut c_void),
         ctx: *mut c_void,
+        context_retain: Option<ContextCallback>,
+        context_release: Option<ContextCallback>,
         out_handle: *mut *mut c_void,
         error_out: *mut *mut c_char,
     ) -> i32;
@@ -300,7 +310,9 @@ extern "C" {
     pub fn cl_location_updater_new(
         configuration: i32,
         callback: Option<LocationUpdateCallback>,
-        user_info: *mut c_void,
+        context: *mut c_void,
+        context_retain: Option<ContextCallback>,
+        context_release: Option<ContextCallback>,
         out_updater: *mut *mut c_void,
         error_out: *mut *mut c_char,
     ) -> i32;

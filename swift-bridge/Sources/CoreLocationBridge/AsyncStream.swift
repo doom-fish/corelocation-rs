@@ -4,9 +4,31 @@ import Foundation
 // C callback type used for all stream event bridges.
 //   kind    - discriminant identifying which delegate callback fired
 //   json    - NUL-terminated JSON payload (may be nil for events with no data)
-//   ctx     - Rust-side AsyncStreamSender<E> raw pointer, passed through unchanged
+//   ctx     - Rust-side stream context pointer, retained by the bridge until it is freed
 public typealias CLStreamEventCallback =
     @convention(c) (Int32, UnsafePointer<CChar>?, UnsafeMutableRawPointer) -> Void
+
+final class CLStreamSink: @unchecked Sendable {
+    private let onEvent: CLStreamEventCallback
+    private let context: CLRustContext
+
+    init?(
+        onEvent: CLStreamEventCallback,
+        context: UnsafeMutableRawPointer?,
+        retain: CLContextCallback?,
+        release: CLContextCallback?
+    ) {
+        guard let context = CLRustContext(context, retain: retain, release: release) else {
+            return nil
+        }
+        self.onEvent = onEvent
+        self.context = context
+    }
+
+    func fire(_ kind: Int32, _ json: String) {
+        json.withCString { onEvent(kind, $0, context.pointer) }
+    }
+}
 
 // MARK: - CLLocationManagerDelegate stream bridge
 //
@@ -22,12 +44,10 @@ public typealias CLStreamEventCallback =
 
 final class CLLocationManagerStreamBridge: NSObject, CLLocationManagerDelegate {
     let manager: CLLocationManager
-    private let onEvent: CLStreamEventCallback
-    private let ctx: UnsafeMutableRawPointer
+    private let sink: CLStreamSink
 
-    init(onEvent: CLStreamEventCallback, ctx: UnsafeMutableRawPointer) {
-        self.onEvent = onEvent
-        self.ctx = ctx
+    init(sink: CLStreamSink) {
+        self.sink = sink
         self.manager = CLLocationManager()
         super.init()
         self.manager.delegate = self
@@ -38,7 +58,7 @@ final class CLLocationManagerStreamBridge: NSObject, CLLocationManagerDelegate {
     }
 
     private func fire(_ kind: Int32, _ json: String) {
-        json.withCString { onEvent(kind, $0, ctx) }
+        sink.fire(kind, json)
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -82,24 +102,36 @@ final class CLLocationManagerStreamBridge: NSObject, CLLocationManagerDelegate {
 @_cdecl("cl_location_manager_stream_subscribe")
 public func cl_location_manager_stream_subscribe(
     _ onEvent: CLStreamEventCallback,
-    _ ctx: UnsafeMutableRawPointer
-) -> UnsafeMutableRawPointer {
-    let bridge = CLLocationManagerStreamBridge(onEvent: onEvent, ctx: ctx)
+    _ ctx: UnsafeMutableRawPointer,
+    _ contextRetain: CLContextCallback?,
+    _ contextRelease: CLContextCallback?
+) -> UnsafeMutableRawPointer? {
+    guard let sink = CLStreamSink(
+        onEvent: onEvent,
+        context: ctx,
+        retain: contextRetain,
+        release: contextRelease
+    ) else {
+        return nil
+    }
+    var bridge: CLLocationManagerStreamBridge?
+    CLDeliveryThread.shared.perform {
+        bridge = CLLocationManagerStreamBridge(sink: sink)
+    }
+    guard let bridge else {
+        return nil
+    }
     return cl_retain(bridge)
 }
 
 @_cdecl("cl_location_manager_stream_unsubscribe")
-public func cl_location_manager_stream_unsubscribe(_ handle: UnsafeMutableRawPointer) {
-    // CoreLocation delivers delegate callbacks on the main run loop.
-    // Releasing the bridge on the main thread serialises this release with any
-    // in-flight callback so that deinit (which sets manager.delegate = nil)
-    // cannot run while a callback is still holding a temporary strong reference
-    // and writing into sender_ptr.
+public func cl_location_manager_stream_unsubscribe(_ handle: UnsafeMutableRawPointer?) {
+    guard let handle else {
+        return
+    }
     let bridge = Unmanaged<CLLocationManagerStreamBridge>.fromOpaque(handle)
-    if Thread.isMainThread {
+    CLDeliveryThread.shared.perform {
         bridge.release()
-    } else {
-        DispatchQueue.main.sync { bridge.release() }
     }
 }
 
@@ -155,53 +187,34 @@ public func cl_location_manager_stream_stop_monitoring_significant_changes(
 @available(macOS 14.0, *)
 final class CLMonitorStreamBridge: NSObject {
     let monitor: CLMonitor
-    private let onEvent: CLStreamEventCallback
-    private let ctx: UnsafeMutableRawPointer
-    private var eventTask: Task<Void, Never>?
-    // Signalled by the task body's defer block once it has fully exited.
-    // deinit blocks on this so cl_monitor_stream_unsubscribe only returns
-    // after the last possible onEvent(…ctx…) call, preventing a
-    // use-after-free of the Rust sender_ptr after the handle is dropped.
-    private let taskDone = DispatchSemaphore(value: 0)
+    private let gate = CLTaskGate()
 
-    init(name: String, onEvent: CLStreamEventCallback, ctx: UnsafeMutableRawPointer) async {
+    init(name: String, sink: CLStreamSink) async {
         self.monitor = await CLMonitor(name)
-        self.onEvent = onEvent
-        self.ctx = ctx
         super.init()
-        startTask()
+        startTask(sink)
     }
 
-    private func startTask() {
+    private func startTask(_ sink: CLStreamSink) {
         let monitor = self.monitor
-        let onEvent = self.onEvent
-        let ctx = self.ctx
-        let taskDone = self.taskDone
-        eventTask = Task {
-            defer { taskDone.signal() }
+        gate.start { gate in
             let events = await monitor.events
             do {
                 for try await event in events {
-                    if Task.isCancelled { break }
                     let json = cl_json_string(cl_monitor_event_object(event))
-                    json.withCString { onEvent(0, $0, ctx) }
+                    guard gate.deliver({ sink.fire(0, json) }) else {
+                        return
+                    }
                 }
             } catch {
-                if !Task.isCancelled {
-                    let json = cl_json_string(cl_error_object(error))
-                    json.withCString { onEvent(1, $0, ctx) }
-                }
+                let json = cl_json_string(cl_error_object(error))
+                _ = gate.deliver { sink.fire(1, json) }
             }
         }
     }
 
     deinit {
-        eventTask?.cancel()
-        // Block until the task body has fully exited so that no in-flight
-        // onEvent(…ctx…) call races against the Rust side freeing sender_ptr.
-        // The 2-second timeout is a safety net in case CLMonitor.events does
-        // not honour cooperative cancellation (should never fire in practice).
-        _ = taskDone.wait(timeout: .now() + 2)
+        gate.stop()
     }
 }
 
@@ -210,6 +223,8 @@ public func cl_monitor_stream_new(
     _ namePtr: UnsafePointer<CChar>?,
     _ onEvent: CLStreamEventCallback,
     _ ctx: UnsafeMutableRawPointer,
+    _ contextRetain: CLContextCallback?,
+    _ contextRelease: CLContextCallback?,
     _ outHandle: UnsafeMutablePointer<UnsafeMutableRawPointer?>,
     _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
@@ -222,17 +237,26 @@ public func cl_monitor_stream_new(
         cl_write_error(errorOut, "monitor name must not be null")
         return CL_INVALID_ARGUMENT
     }
+    guard let sink = CLStreamSink(
+        onEvent: onEvent,
+        context: ctx,
+        retain: contextRetain,
+        release: contextRelease
+    ) else {
+        cl_write_error(errorOut, "stream context callbacks must not be null")
+        return CL_INVALID_ARGUMENT
+    }
     let name = String(cString: namePtr)
     let bridge = cl_wait {
-        await CLMonitorStreamBridge(name: name, onEvent: onEvent, ctx: ctx)
+        await CLMonitorStreamBridge(name: name, sink: sink)
     }
     outHandle.pointee = cl_retain(bridge)
     return CL_OK
 }
 
 @_cdecl("cl_monitor_stream_unsubscribe")
-public func cl_monitor_stream_unsubscribe(_ handle: UnsafeMutableRawPointer) {
-    guard #available(macOS 14.0, *) else { return }
+public func cl_monitor_stream_unsubscribe(_ handle: UnsafeMutableRawPointer?) {
+    guard #available(macOS 14.0, *), let handle else { return }
     Unmanaged<CLMonitorStreamBridge>.fromOpaque(handle).release()
 }
 

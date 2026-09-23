@@ -1,7 +1,7 @@
 use core::ffi::{c_char, c_void};
-use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Mutex;
 
+use doom_fish_utils::callback_context::CallbackContext;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{from_swift, CoreLocationError};
@@ -245,6 +245,8 @@ struct CallbackState {
     delegate: Mutex<Box<dyn MonitorDelegate>>,
 }
 
+type MonitorContext = CallbackContext<CallbackState>;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Helper used to open a named `CLMonitor`.
 pub struct MonitorConfiguration {
@@ -289,35 +291,36 @@ impl MonitorConfiguration {
 pub struct Monitor {
     raw: *mut c_void,
     name: String,
-    callback_state: Option<Box<CallbackState>>,
+    context: Option<MonitorContext>,
 }
 
-unsafe extern "C" fn monitor_trampoline(user_info: *mut c_void, payload_json: *const c_char) {
-    if user_info.is_null() || payload_json.is_null() {
+unsafe extern "C" fn monitor_trampoline(context: *mut c_void, payload_json: *const c_char) {
+    if payload_json.is_null() {
         return;
     }
 
-    let _ = catch_unwind(AssertUnwindSafe(|| {
-        let state = unsafe { &*user_info.cast::<CallbackState>() };
-        let payload_json = unsafe { core::ffi::CStr::from_ptr(payload_json) }
-            .to_string_lossy()
-            .into_owned();
-        let Ok(payload): Result<MonitorEventPayload, _> = serde_json::from_str(&payload_json)
-        else {
-            return;
-        };
+    let _ = unsafe {
+        MonitorContext::with(context, "MonitorDelegate", |state| {
+            let payload_json = core::ffi::CStr::from_ptr(payload_json)
+                .to_string_lossy()
+                .into_owned();
+            let Ok(payload): Result<MonitorEventPayload, _> = serde_json::from_str(&payload_json)
+            else {
+                return;
+            };
 
-        let mut delegate = match state.delegate.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        };
+            let mut delegate = match state.delegate.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
 
-        if payload.event == "didReceiveEvent" {
-            if let Some(event) = payload.monitoring_event {
-                delegate.did_receive_event(event);
+            if payload.event == "didReceiveEvent" {
+                if let Some(event) = payload.monitoring_event {
+                    delegate.did_receive_event(event);
+                }
             }
-        }
-    }));
+        })
+    };
 }
 
 impl Monitor {
@@ -373,30 +376,34 @@ impl Monitor {
         let name = to_cstring(&configuration.name)?;
         let mut raw = core::ptr::null_mut();
         let mut error = core::ptr::null_mut();
-        let mut callback_state = delegate.map(|delegate| {
-            Box::new(CallbackState {
+        let context = delegate.map(|delegate| {
+            MonitorContext::new(CallbackState {
                 delegate: Mutex::new(delegate),
             })
         });
-        let user_info = callback_state
-            .as_deref_mut()
-            .map_or(core::ptr::null_mut(), |state| {
-                std::ptr::from_mut::<CallbackState>(state).cast::<c_void>()
-            });
-        let callback = if callback_state.is_some() {
-            Some(monitor_trampoline as ffi::EventCallback)
-        } else {
-            None
-        };
+        let callback = context
+            .as_ref()
+            .map(|_| monitor_trampoline as ffi::EventCallback);
+        let context_ptr = context
+            .as_ref()
+            .map_or(core::ptr::null_mut(), MonitorContext::as_ptr);
 
         let status = unsafe {
-            ffi::cl_monitor_new(name.as_ptr(), callback, user_info, &raw mut raw, &raw mut error)
+            ffi::cl_monitor_new(
+                name.as_ptr(),
+                callback,
+                context_ptr,
+                Some(MonitorContext::RETAIN),
+                Some(MonitorContext::RELEASE),
+                &raw mut raw,
+                &raw mut error,
+            )
         };
         if status == ffi::status::OK {
             Ok(Self {
                 raw,
                 name: configuration.name,
-                callback_state,
+                context,
             })
         } else {
             Err(from_swift(status, error))
@@ -486,7 +493,47 @@ impl Monitor {
 
 impl Drop for Monitor {
     fn drop(&mut self) {
+        if let Some(context) = &self.context {
+            context.deactivate();
+        }
         unsafe { ffi::cl_object_release(self.raw) };
-        let _ = self.callback_state.take();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    use super::*;
+
+    const EVENT: &core::ffi::CStr = c"{\"event\":\"didReceiveEvent\",\"monitoring_event\":{\"identifier\":\"fence\",\"refinement\":null,\"state\":1,\"date\":0.0,\"authorization_denied\":false,\"authorization_denied_globally\":false,\"authorization_restricted\":false,\"insufficiently_in_use\":false,\"accuracy_limited\":false,\"condition_unsupported\":false,\"condition_limit_exceeded\":false,\"persistence_unavailable\":false,\"service_session_required\":false,\"authorization_request_in_progress\":false}}";
+
+    #[test]
+    fn trampoline_delivers_until_the_context_is_deactivated() {
+        let events = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&events);
+        let callbacks = MonitorCallbacks::new().on_event(move |event| {
+            assert_eq!(event.identifier, "fence");
+            assert_eq!(event.state, MonitoringState::Satisfied);
+            counter.fetch_add(1, Ordering::SeqCst);
+        });
+        let context = MonitorContext::new(CallbackState {
+            delegate: Mutex::new(Box::new(callbacks)),
+        });
+        let swift_reference = context.retained_ptr();
+
+        unsafe {
+            monitor_trampoline(swift_reference, EVENT.as_ptr());
+            monitor_trampoline(swift_reference, c"{\"event\":\"didFail\"}".as_ptr());
+        }
+        context.deactivate();
+        unsafe { monitor_trampoline(swift_reference, EVENT.as_ptr()) };
+        drop(context);
+
+        assert_eq!(events.load(Ordering::SeqCst), 1);
+        assert_eq!(Arc::strong_count(&events), 2);
+        unsafe { (MonitorContext::RELEASE)(swift_reference) };
+        assert_eq!(Arc::strong_count(&events), 1);
     }
 }

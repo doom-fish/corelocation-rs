@@ -25,3 +25,32 @@ fn location_manager_smoke_and_configuration_round_trip() -> Result<(), Box<dyn s
     );
     Ok(())
 }
+
+#[test]
+fn delegate_callbacks_arrive_without_a_run_loop_on_the_creating_thread() {
+    use std::sync::mpsc::{self, TryRecvError};
+    use std::thread;
+    use std::time::Duration;
+
+    let (sender, receiver) = mpsc::channel();
+    let creator = thread::current().id();
+    let manager = LocationManager::with_callbacks(
+        LocationManagerCallbacks::new().on_authorization_details(move |snapshot| {
+            let _ = sender.send((snapshot, thread::current().id()));
+        }),
+    )
+    .expect("LocationManager::with_callbacks");
+
+    let (snapshot, delivery_thread) = receiver
+        .recv_timeout(Duration::from_secs(10))
+        .expect("the initial authorization callback must arrive");
+    assert_ne!(delivery_thread, creator);
+    assert_eq!(snapshot.status, manager.authorization_status());
+
+    drop(manager);
+    let _earlier: Vec<_> = receiver.try_iter().collect();
+    assert!(matches!(
+        receiver.try_recv(),
+        Err(TryRecvError::Disconnected)
+    ));
+}

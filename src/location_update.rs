@@ -1,7 +1,7 @@
 use core::ffi::{c_char, c_void};
-use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Mutex;
 
+use doom_fish_utils::callback_context::CallbackContext;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{from_swift, CoreLocationError};
@@ -157,46 +157,46 @@ struct CallbackState {
     delegate: Mutex<Box<dyn LocationUpdateDelegate>>,
 }
 
+type UpdaterContext = CallbackContext<CallbackState>;
+
 /// Owns the bridged `CLLocationUpdate.liveUpdates` stream.
 pub struct LocationUpdater {
     raw: *mut c_void,
-    callback_state: Option<Box<CallbackState>>,
+    context: Option<UpdaterContext>,
 }
 
-unsafe extern "C" fn location_update_trampoline(
-    user_info: *mut c_void,
-    payload_json: *const c_char,
-) {
-    if user_info.is_null() || payload_json.is_null() {
+unsafe extern "C" fn location_update_trampoline(context: *mut c_void, payload_json: *const c_char) {
+    if payload_json.is_null() {
         return;
     }
 
-    let _ = catch_unwind(AssertUnwindSafe(|| {
-        let state = unsafe { &*user_info.cast::<CallbackState>() };
-        let payload_json = unsafe { core::ffi::CStr::from_ptr(payload_json) }
-            .to_string_lossy()
-            .into_owned();
-        let Ok(payload): Result<LocationUpdateEventPayload, _> =
-            serde_json::from_str(&payload_json)
-        else {
-            return;
-        };
+    let _ = unsafe {
+        UpdaterContext::with(context, "LocationUpdateDelegate", |state| {
+            let payload_json = core::ffi::CStr::from_ptr(payload_json)
+                .to_string_lossy()
+                .into_owned();
+            let Ok(payload): Result<LocationUpdateEventPayload, _> =
+                serde_json::from_str(&payload_json)
+            else {
+                return;
+            };
 
-        let mut delegate = match state.delegate.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        };
+            let mut delegate = match state.delegate.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
 
-        match payload.event.as_str() {
-            "didUpdate" => {
-                if let Some(update) = payload.update {
-                    delegate.did_receive_update(update);
+            match payload.event.as_str() {
+                "didUpdate" => {
+                    if let Some(update) = payload.update {
+                        delegate.did_receive_update(update);
+                    }
                 }
+                "didInvalidate" => delegate.did_invalidate(),
+                _ => {}
             }
-            "didInvalidate" => delegate.did_invalidate(),
-            _ => {}
-        }
-    }));
+        })
+    };
 }
 
 impl LocationUpdater {
@@ -249,36 +249,31 @@ impl LocationUpdater {
         let mut raw = core::ptr::null_mut();
         let mut error = core::ptr::null_mut();
 
-        let mut callback_state = delegate.map(|delegate| {
-            Box::new(CallbackState {
+        let context = delegate.map(|delegate| {
+            UpdaterContext::new(CallbackState {
                 delegate: Mutex::new(delegate),
             })
         });
-        let user_info = callback_state
-            .as_deref_mut()
-            .map_or(core::ptr::null_mut(), |state| {
-                std::ptr::from_mut::<CallbackState>(state).cast::<c_void>()
-            });
-        let callback = if callback_state.is_some() {
-            Some(location_update_trampoline as ffi::LocationUpdateCallback)
-        } else {
-            None
-        };
+        let callback = context
+            .as_ref()
+            .map(|_| location_update_trampoline as ffi::LocationUpdateCallback);
+        let context_ptr = context
+            .as_ref()
+            .map_or(core::ptr::null_mut(), UpdaterContext::as_ptr);
 
         let status = unsafe {
             ffi::cl_location_updater_new(
                 configuration as i32,
                 callback,
-                user_info,
+                context_ptr,
+                Some(UpdaterContext::RETAIN),
+                Some(UpdaterContext::RELEASE),
                 &raw mut raw,
                 &raw mut error,
             )
         };
         if status == ffi::status::OK {
-            Ok(Self {
-                raw,
-                callback_state,
-            })
+            Ok(Self { raw, context })
         } else {
             Err(from_swift(status, error))
         }
@@ -308,7 +303,77 @@ impl LocationUpdater {
 
 impl Drop for LocationUpdater {
     fn drop(&mut self) {
-        unsafe { ffi::cl_object_release(self.raw) };
-        let _ = self.callback_state.take();
+        if let Some(context) = &self.context {
+            context.deactivate();
+        }
+        unsafe {
+            ffi::cl_location_updater_invalidate(self.raw);
+            ffi::cl_object_release(self.raw);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    use super::*;
+
+    fn counting_context() -> (UpdaterContext, Arc<AtomicUsize>, Arc<AtomicUsize>) {
+        let updates = Arc::new(AtomicUsize::new(0));
+        let invalidations = Arc::new(AtomicUsize::new(0));
+        let update_counter = Arc::clone(&updates);
+        let invalidation_counter = Arc::clone(&invalidations);
+        let callbacks = LocationUpdateCallbacks::new()
+            .on_update(move |_| {
+                update_counter.fetch_add(1, Ordering::SeqCst);
+            })
+            .on_invalidate(move || {
+                invalidation_counter.fetch_add(1, Ordering::SeqCst);
+            });
+        let context = UpdaterContext::new(CallbackState {
+            delegate: Mutex::new(Box::new(callbacks)),
+        });
+        (context, updates, invalidations)
+    }
+
+    const UPDATE: &core::ffi::CStr = c"{\"event\":\"didUpdate\",\"update\":{\"location\":null,\"stationary\":true,\"authorization_denied\":false,\"authorization_denied_globally\":false,\"authorization_restricted\":false,\"insufficiently_in_use\":false,\"location_unavailable\":false,\"accuracy_limited\":false,\"service_session_required\":false,\"authorization_request_in_progress\":true}}";
+    const INVALIDATE: &core::ffi::CStr = c"{\"event\":\"didInvalidate\"}";
+
+    #[test]
+    fn trampoline_routes_updates_and_invalidation() {
+        let (context, updates, invalidations) = counting_context();
+        let swift_reference = context.retained_ptr();
+
+        unsafe {
+            location_update_trampoline(swift_reference, UPDATE.as_ptr());
+            location_update_trampoline(swift_reference, INVALIDATE.as_ptr());
+            location_update_trampoline(swift_reference, c"not json".as_ptr());
+            location_update_trampoline(swift_reference, core::ptr::null());
+            location_update_trampoline(core::ptr::null_mut(), UPDATE.as_ptr());
+        }
+
+        assert_eq!(updates.load(Ordering::SeqCst), 1);
+        assert_eq!(invalidations.load(Ordering::SeqCst), 1);
+        unsafe { (UpdaterContext::RELEASE)(swift_reference) };
+    }
+
+    #[test]
+    fn callbacks_after_deactivation_are_dropped_and_state_outlives_the_handle() {
+        let (context, updates, invalidations) = counting_context();
+        let swift_reference = context.retained_ptr();
+
+        context.deactivate();
+        unsafe { location_update_trampoline(swift_reference, UPDATE.as_ptr()) };
+        drop(context);
+        unsafe { location_update_trampoline(swift_reference, INVALIDATE.as_ptr()) };
+
+        assert_eq!(updates.load(Ordering::SeqCst), 0);
+        assert_eq!(invalidations.load(Ordering::SeqCst), 0);
+        assert_eq!(Arc::strong_count(&updates), 2);
+        unsafe { (UpdaterContext::RELEASE)(swift_reference) };
+        assert_eq!(Arc::strong_count(&updates), 1);
+        assert_eq!(Arc::strong_count(&invalidations), 1);
     }
 }

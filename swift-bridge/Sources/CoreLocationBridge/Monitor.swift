@@ -145,72 +145,43 @@ private func cl_monitor_record_object(_ record: CLMonitor.Record) -> [String: An
 private final class CLMonitorBox: NSObject {
     let name: String
     let monitor: CLMonitor
-    private let callback: CLManagerEventCallback?
-    private let userInfo: UnsafeMutableRawPointer?
-    private var eventTask: Task<Void, Never>?
+    private let gate = CLTaskGate()
 
-    init(
-        name: String,
-        monitor: CLMonitor,
-        callback: CLManagerEventCallback?,
-        userInfo: UnsafeMutableRawPointer?
-    ) {
+    init(name: String, monitor: CLMonitor, sink: CLEventSink?) {
         self.name = name
         self.monitor = monitor
-        self.callback = callback
-        self.userInfo = userInfo
         super.init()
-        startEventTask()
-    }
-
-    private static func send(
-        callback: @escaping CLManagerEventCallback,
-        userInfo: UnsafeMutableRawPointer?,
-        object: [String: Any]
-    ) {
-        let json = cl_json_string(object)
-        json.withCString { callback(userInfo, $0) }
-    }
-
-    private func startEventTask() {
-        guard let callback else {
-            return
+        if let sink {
+            startEventTask(sink)
         }
+    }
+
+    private func startEventTask(_ sink: CLEventSink) {
         let monitor = self.monitor
-        let userInfo = self.userInfo
-        eventTask = Task {
+        gate.start { gate in
             let events = await monitor.events
             do {
                 for try await event in events {
-                    if Task.isCancelled {
-                        break
+                    let object: [String: Any] = [
+                        "event": "didReceiveEvent",
+                        "monitoring_event": cl_monitor_event_object(event),
+                    ]
+                    guard gate.deliver({ sink.send(object) }) else {
+                        return
                     }
-                    Self.send(
-                        callback: callback,
-                        userInfo: userInfo,
-                        object: [
-                            "event": "didReceiveEvent",
-                            "monitoring_event": cl_monitor_event_object(event),
-                        ]
-                    )
                 }
             } catch {
-                if !Task.isCancelled {
-                    Self.send(
-                        callback: callback,
-                        userInfo: userInfo,
-                        object: [
-                            "event": "didFail",
-                            "error": cl_error_object(error),
-                        ]
-                    )
-                }
+                let object: [String: Any] = [
+                    "event": "didFail",
+                    "error": cl_error_object(error),
+                ]
+                _ = gate.deliver { sink.send(object) }
             }
         }
     }
 
     deinit {
-        eventTask?.cancel()
+        gate.stop()
     }
 }
 
@@ -262,7 +233,9 @@ public func cl_circular_geographic_condition_json(
 public func cl_monitor_new(
     _ namePtr: UnsafePointer<CChar>?,
     _ callback: CLManagerEventCallback?,
-    _ userInfo: UnsafeMutableRawPointer?,
+    _ context: UnsafeMutableRawPointer?,
+    _ contextRetain: CLContextCallback?,
+    _ contextRelease: CLContextCallback?,
     _ outMonitor: UnsafeMutablePointer<UnsafeMutableRawPointer?>,
     _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
@@ -277,8 +250,14 @@ public func cl_monitor_new(
     }
 
     let name = String(cString: namePtr)
+    let sink = CLEventSink(
+        callback: callback,
+        context: context,
+        retain: contextRetain,
+        release: contextRelease
+    )
     let box = cl_wait {
-        CLMonitorBox(name: name, monitor: await CLMonitor(name), callback: callback, userInfo: userInfo)
+        CLMonitorBox(name: name, monitor: await CLMonitor(name), sink: sink)
     }
     outMonitor.pointee = cl_retain(box)
     return CL_OK

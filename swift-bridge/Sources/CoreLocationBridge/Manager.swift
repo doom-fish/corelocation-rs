@@ -5,24 +5,15 @@ public typealias CLManagerEventCallback =
     @convention(c) (UnsafeMutableRawPointer?, UnsafePointer<CChar>?) -> Void
 
 private final class CLRustManagerDelegate: NSObject, CLLocationManagerDelegate {
-    let callback: CLManagerEventCallback
-    let userInfo: UnsafeMutableRawPointer?
-    private var isActive = true
+    private let sink: CLEventSink
 
-    init(callback: @escaping CLManagerEventCallback, userInfo: UnsafeMutableRawPointer?) {
-        self.callback = callback
-        self.userInfo = userInfo
+    init(sink: CLEventSink) {
+        self.sink = sink
         super.init()
     }
 
-    func deactivate() {
-        isActive = false
-    }
-
     private func send(_ object: [String: Any]) {
-        guard isActive else { return }
-        let json = cl_json_string(object)
-        json.withCString { callback(userInfo, $0) }
+        sink.send(object)
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -157,7 +148,6 @@ private final class CLLocationManagerBox: NSObject {
     }
 
     deinit {
-        delegateBox?.deactivate()
         manager.delegate = nil
     }
 }
@@ -173,18 +163,44 @@ private func cl_manager_box(_ ptr: UnsafeMutableRawPointer?) -> CLLocationManage
 @_cdecl("cl_manager_new")
 public func cl_manager_new(
     _ callback: CLManagerEventCallback?,
-    _ userInfo: UnsafeMutableRawPointer?,
+    _ context: UnsafeMutableRawPointer?,
+    _ contextRetain: CLContextCallback?,
+    _ contextRelease: CLContextCallback?,
     _ outManager: UnsafeMutablePointer<UnsafeMutableRawPointer?>,
     _ errorOut: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
 ) -> Int32 {
     outManager.pointee = nil
 
-    let manager = CLLocationManager()
-    let delegateBox = callback.map { CLRustManagerDelegate(callback: $0, userInfo: userInfo) }
-    let box = CLLocationManagerBox(manager: manager, delegateBox: delegateBox)
+    let sink = CLEventSink(
+        callback: callback,
+        context: context,
+        retain: contextRetain,
+        release: contextRelease
+    )
+    var box: CLLocationManagerBox?
+    CLDeliveryThread.shared.perform {
+        box = CLLocationManagerBox(
+            manager: CLLocationManager(),
+            delegateBox: sink.map { CLRustManagerDelegate(sink: $0) }
+        )
+    }
+    guard let box else {
+        cl_write_error(errorOut, "CLLocationManager could not be created")
+        return CL_FRAMEWORK_ERROR
+    }
     outManager.pointee = cl_retain(box)
-    _ = errorOut
     return CL_OK
+}
+
+@_cdecl("cl_manager_release")
+public func cl_manager_release(_ managerPtr: UnsafeMutableRawPointer?) {
+    guard let managerPtr else {
+        return
+    }
+    let box = Unmanaged<CLLocationManagerBox>.fromOpaque(managerPtr)
+    CLDeliveryThread.shared.perform {
+        box.release()
+    }
 }
 
 @_cdecl("cl_manager_set_desired_accuracy")

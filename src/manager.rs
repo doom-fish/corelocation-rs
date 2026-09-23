@@ -1,7 +1,7 @@
 use core::ffi::{c_char, c_void};
-use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Mutex;
 
+use doom_fish_utils::callback_context::CallbackContext;
 use serde::Deserialize;
 
 use crate::authorization::{AccuracyAuthorization, AuthorizationSnapshot, AuthorizationStatus};
@@ -584,100 +584,103 @@ struct CallbackState {
     delegate: Mutex<Box<dyn LocationManagerDelegate>>,
 }
 
+type ManagerContext = CallbackContext<CallbackState>;
+
 /// Wraps `CLLocationManager`.
 pub struct LocationManager {
     raw: *mut c_void,
-    callback_state: Option<Box<CallbackState>>,
+    context: Option<ManagerContext>,
 }
 
-unsafe extern "C" fn manager_event_trampoline(user_info: *mut c_void, payload_json: *const c_char) {
-    if user_info.is_null() || payload_json.is_null() {
+unsafe extern "C" fn manager_event_trampoline(context: *mut c_void, payload_json: *const c_char) {
+    if payload_json.is_null() {
         return;
     }
 
-    let _ = catch_unwind(AssertUnwindSafe(|| {
-        let state = unsafe { &*user_info.cast::<CallbackState>() };
-        let payload_json = unsafe { core::ffi::CStr::from_ptr(payload_json) }
-            .to_string_lossy()
-            .into_owned();
-        let Ok(payload): Result<LocationManagerEventPayload, _> =
-            serde_json::from_str(&payload_json)
-        else {
-            return;
-        };
+    let _ = unsafe {
+        ManagerContext::with(context, "LocationManagerDelegate", |state| {
+            let payload_json = core::ffi::CStr::from_ptr(payload_json)
+                .to_string_lossy()
+                .into_owned();
+            let Ok(payload): Result<LocationManagerEventPayload, _> =
+                serde_json::from_str(&payload_json)
+            else {
+                return;
+            };
 
-        let mut delegate = match state.delegate.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        };
+            let mut delegate = match state.delegate.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
 
-        match payload.event.as_str() {
-            "didUpdateLocations" => {
-                delegate.did_update_locations(payload.locations.unwrap_or_default());
-            }
-            "didFailWithError" => {
-                if let Some(error) = payload.error {
-                    delegate.did_fail_with_error(error);
+            match payload.event.as_str() {
+                "didUpdateLocations" => {
+                    delegate.did_update_locations(payload.locations.unwrap_or_default());
                 }
-            }
-            "didChangeAuthorization" => {
-                let authorization = payload.authorization_snapshot();
-                delegate.did_change_authorization(authorization.status);
-                delegate.did_change_authorization_details(authorization);
-            }
-            "didUpdateHeading" => {
-                if let Some(heading) = payload.heading {
-                    delegate.did_update_heading(heading);
+                "didFailWithError" => {
+                    if let Some(error) = payload.error {
+                        delegate.did_fail_with_error(error);
+                    }
                 }
-            }
-            "didEnterRegion" => {
-                if let Some(region) = payload.region {
-                    delegate.did_enter_region(region);
+                "didChangeAuthorization" => {
+                    let authorization = payload.authorization_snapshot();
+                    delegate.did_change_authorization(authorization.status);
+                    delegate.did_change_authorization_details(authorization);
                 }
-            }
-            "didExitRegion" => {
-                if let Some(region) = payload.region {
-                    delegate.did_exit_region(region);
+                "didUpdateHeading" => {
+                    if let Some(heading) = payload.heading {
+                        delegate.did_update_heading(heading);
+                    }
                 }
-            }
-            "didDetermineState" => {
-                if let (Some(state), Some(region)) = (payload.region_state, payload.region) {
-                    delegate.did_determine_state(RegionState::from_raw(state), region);
+                "didEnterRegion" => {
+                    if let Some(region) = payload.region {
+                        delegate.did_enter_region(region);
+                    }
                 }
-            }
-            "didStartMonitoringForRegion" => {
-                if let Some(region) = payload.region {
-                    delegate.did_start_monitoring_region(region);
+                "didExitRegion" => {
+                    if let Some(region) = payload.region {
+                        delegate.did_exit_region(region);
+                    }
                 }
-            }
-            "monitoringDidFailForRegion" => {
-                if let Some(error) = payload.error {
-                    delegate.monitoring_did_fail_for_region(payload.region, error);
+                "didDetermineState" => {
+                    if let (Some(state), Some(region)) = (payload.region_state, payload.region) {
+                        delegate.did_determine_state(RegionState::from_raw(state), region);
+                    }
                 }
-            }
-            "didRangeBeacons" => {
-                if let Some(condition) = payload.beacon_identity_condition {
-                    delegate.did_range_beacons(payload.beacons.unwrap_or_default(), condition);
+                "didStartMonitoringForRegion" => {
+                    if let Some(region) = payload.region {
+                        delegate.did_start_monitoring_region(region);
+                    }
                 }
-            }
-            "didFailRangingBeacons" => {
-                if let (Some(condition), Some(error)) =
-                    (payload.beacon_identity_condition, payload.error)
-                {
-                    delegate.did_fail_ranging_beacons(condition, error);
+                "monitoringDidFailForRegion" => {
+                    if let Some(error) = payload.error {
+                        delegate.monitoring_did_fail_for_region(payload.region, error);
+                    }
                 }
-            }
-            "didPauseLocationUpdates" => delegate.did_pause_location_updates(),
-            "didResumeLocationUpdates" => delegate.did_resume_location_updates(),
-            "didFinishDeferredUpdates" => delegate.did_finish_deferred_updates(payload.error),
-            "didVisit" => {
-                if let Some(visit) = payload.visit {
-                    delegate.did_visit(visit);
+                "didRangeBeacons" => {
+                    if let Some(condition) = payload.beacon_identity_condition {
+                        delegate.did_range_beacons(payload.beacons.unwrap_or_default(), condition);
+                    }
                 }
+                "didFailRangingBeacons" => {
+                    if let (Some(condition), Some(error)) =
+                        (payload.beacon_identity_condition, payload.error)
+                    {
+                        delegate.did_fail_ranging_beacons(condition, error);
+                    }
+                }
+                "didPauseLocationUpdates" => delegate.did_pause_location_updates(),
+                "didResumeLocationUpdates" => delegate.did_resume_location_updates(),
+                "didFinishDeferredUpdates" => delegate.did_finish_deferred_updates(payload.error),
+                "didVisit" => {
+                    if let Some(visit) = payload.visit {
+                        delegate.did_visit(visit);
+                    }
+                }
+                _ => {}
             }
-            _ => {}
-        }
-    }));
+        })
+    };
 }
 
 impl LocationManager {
@@ -704,28 +707,30 @@ impl LocationManager {
         let mut raw = core::ptr::null_mut();
         let mut error = core::ptr::null_mut();
 
-        let mut callback_state = delegate.map(|delegate| {
-            Box::new(CallbackState {
+        let context = delegate.map(|delegate| {
+            ManagerContext::new(CallbackState {
                 delegate: Mutex::new(delegate),
             })
         });
-        let user_info = callback_state
-            .as_deref_mut()
-            .map_or(core::ptr::null_mut(), |state| {
-                std::ptr::from_mut::<CallbackState>(state).cast::<c_void>()
-            });
-        let callback = if callback_state.is_some() {
-            Some(manager_event_trampoline as ffi::ManagerEventCallback)
-        } else {
-            None
-        };
+        let callback = context
+            .as_ref()
+            .map(|_| manager_event_trampoline as ffi::ManagerEventCallback);
+        let context_ptr = context
+            .as_ref()
+            .map_or(core::ptr::null_mut(), ManagerContext::as_ptr);
 
-        let status = unsafe { ffi::cl_manager_new(callback, user_info, &raw mut raw, &raw mut error) };
+        let status = unsafe {
+            ffi::cl_manager_new(
+                callback,
+                context_ptr,
+                Some(ManagerContext::RETAIN),
+                Some(ManagerContext::RELEASE),
+                &raw mut raw,
+                &raw mut error,
+            )
+        };
         if status == ffi::status::OK {
-            Ok(Self {
-                raw,
-                callback_state,
-            })
+            Ok(Self { raw, context })
         } else {
             Err(from_swift(status, error))
         }
@@ -1057,7 +1062,50 @@ impl LocationManager {
 
 impl Drop for LocationManager {
     fn drop(&mut self) {
-        unsafe { ffi::cl_object_release(self.raw) };
-        let _ = self.callback_state.take();
+        if let Some(context) = &self.context {
+            context.deactivate();
+        }
+        unsafe { ffi::cl_manager_release(self.raw) };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+
+    const AUTHORIZATION: &core::ffi::CStr =
+        c"{\"event\":\"didChangeAuthorization\",\"authorization_status\":2,\"accuracy\":1,\"authorized_for_widget_updates\":null}";
+
+    #[test]
+    fn trampoline_delivers_until_the_context_is_deactivated() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&seen);
+        let callbacks = LocationManagerCallbacks::new().on_authorization_details(move |snapshot| {
+            sink.lock().unwrap().push(snapshot);
+        });
+        let context = ManagerContext::new(CallbackState {
+            delegate: Mutex::new(Box::new(callbacks)),
+        });
+        let swift_reference = context.retained_ptr();
+
+        unsafe { manager_event_trampoline(swift_reference, AUTHORIZATION.as_ptr()) };
+        context.deactivate();
+        unsafe { manager_event_trampoline(swift_reference, AUTHORIZATION.as_ptr()) };
+        drop(context);
+
+        {
+            let seen = seen.lock().unwrap();
+            assert_eq!(seen.len(), 1);
+            assert_eq!(seen[0].status, AuthorizationStatus::Denied);
+            assert_eq!(
+                seen[0].accuracy,
+                Some(AccuracyAuthorization::ReducedAccuracy)
+            );
+        }
+        assert_eq!(Arc::strong_count(&seen), 2);
+        unsafe { (ManagerContext::RELEASE)(swift_reference) };
+        assert_eq!(Arc::strong_count(&seen), 1);
     }
 }
