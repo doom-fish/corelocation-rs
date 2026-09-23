@@ -3,7 +3,7 @@
 //! Enabled by the `async` cargo feature:
 //!
 //! ```toml
-//! corelocation = { version = "0.3", features = ["async"] }
+//! corelocation-rs = { version = "0.4", features = ["async"] }
 //! ```
 //!
 //! # Stream surfaces
@@ -41,7 +41,7 @@
 //! use corelocation::monitor::CircularGeographicCondition;
 //! use corelocation::location::Coordinate;
 //!
-//! # async fn run() -> Result<(), corelocation::error::`CoreLocation`Error> {
+//! # async fn run() -> Result<(), corelocation::error::CoreLocationError> {
 //! let stream = MonitorStream::new("geofencedemo", 16)?;
 //! let condition = CircularGeographicCondition::new(
 //!     Coordinate { latitude: 37.3318, longitude: -122.0312 },

@@ -1,5 +1,7 @@
 # CoreLocation coverage audit (corelocation-rs v0.2.2)
 
+Scope: this table was written for v0.2.2 against the SDK headers installed at the time and has not been regenerated since. Each row is a header area chosen for the crate, not a selector-by-selector diff, so ✅ means the listed area has a safe wrapper, not that every method in the header is bound. v0.4.0 changed no rows except marking `Geocoder` deprecated.
+
 Audited against the macOS SDK headers currently installed via Xcode:
 
 - `CoreLocation.framework/Headers/CoreLocation.h`
@@ -71,7 +73,7 @@ Legend:
 | BeaconRegion | `notifyEntryStateOnDisplay` | ✅ | Setter exposed |
 | BeaconRegion | `peripheralDataWithMeasuredPower:` | ✅ | JSON summary helper exposed |
 | Heading | `magneticHeading`, `trueHeading`, `headingAccuracy`, `x`, `y`, `z`, `timestamp` | ✅ | `Heading` snapshot retained |
-| Geocoder | `isGeocoding`, `cancelGeocode` | ✅ | Exposed directly |
+| Geocoder | `isGeocoding`, `cancelGeocode` | ✅ | Exposed directly; `CLGeocoder` is deprecated in macOS 26 and `Geocoder` is `#[deprecated]` since v0.4.0 |
 | Geocoder | `geocodeAddressString`, `reverseGeocodeLocation` | ✅ | Existing surface retained |
 | Geocoder | `reverseGeocodeLocation:preferredLocale:` | ✅ | Locale-aware helper added |
 | Geocoder | `geocodeAddressString:inRegion:` | ✅ | Region-scoped helper added |
@@ -105,15 +107,10 @@ Legend:
 | `CLBeaconRegion` `proximityUUID` initializers / accessors | ⏭️ | Deprecated in favor of UUID-based APIs |
 | `CLGeocoder.geocodeAddressDictionary` | ⏭️ | Deprecated and unavailable on modern macOS workflows |
 | `CLAuthorizationStatusAuthorizedWhenInUse` on macOS | ⏭️ | Header marks it unavailable on macOS |
-
-## Deferred framework families outside the requested area list
-
-| Family | Status | Reason |
-| --- | --- | --- |
-| `CLBackgroundActivitySession` | 🟡 | Requires a separate session-lifecycle API surface |
-| `CLServiceSession` | 🟡 | Requires a separate service-session API surface |
-| `CLLocationPushServiceExtension` / `CLLocationPushServiceError` | 🟡 | Extension-only / push-entitlement workflow not targeted in this crate release |
+| `CLBackgroundActivitySession` | ⏭️ | `API_UNAVAILABLE(macos)` |
+| `CLServiceSession` | ⏭️ | `API_UNAVAILABLE(macos)` |
+| `CLLocationPushServiceExtension` / `CLLocationPushServiceError` | ⏭️ | `API_UNAVAILABLE(macos, macCatalyst)` |
 
 ## Summary
 
-`corelocation-rs` v0.2.2 now covers 100% of the in-scope public macOS CoreLocation surface audited in `COVERAGE_AUDIT.md`, including the remaining location sentinel constants, CoreLocation error helpers, the legacy `CLBeaconIdentityConstraint`, and `CLPlacemark.postalAddress`. The only deferred work left is the SDK surface that Apple already marks deprecated, entitlement-only, or unavailable on macOS.
+Every row above has a safe wrapper. The "100%" in `COVERAGE_AUDIT.md` counts top-level symbols (classes, protocols, enums, constants) in the scope that audit chose, not individual methods or properties. `CLBackgroundActivitySession`, `CLServiceSession` and the location-push extension API are unavailable on macOS, so they can't be wrapped.

@@ -1,5 +1,7 @@
 # corelocation-rs coverage audit (vs MacOSX26.2.sdk)
 
+> Scope: generated against MacOSX26.2.sdk, which is no longer the installed SDK, and not regenerated since. The counts are top-level symbols (classes, protocols, enums, constants, functions) in a scope the audit chose, not methods or properties, so VERIFIED means "a wrapper type or function exists for this symbol". `Geocoder` wraps the EXEMPT `CLGeocoder` and has been `#[deprecated]` since v0.4.0.
+
 SDK_PUBLIC_SYMBOLS: 60
 VERIFIED: 50
 GAPS: 0

@@ -9,7 +9,7 @@ Safe, idiomatic Rust bindings for Apple's [CoreLocation](https://developer.apple
 - **Rich value types** — `Location`, `LocationDetails`, `Heading`, `Visit`, `Floor`, `Placemark`, `Region`, `Beacon`, `BeaconIdentityConditionSnapshot`, and `BeaconIdentityConstraintSnapshot` mirror the `CoreLocation` SDK surface used by the bridge.
 - **Geofences and beacons** — `CircularRegion`, `BeaconRegion`, `BeaconIdentityCondition`, and `BeaconIdentityConstraint` cover circular monitoring, beacon monitoring, legacy constraint-based region construction, peripheral payload generation, and ranging constraints.
 - **Condition monitors** — `Monitor`, `MonitorConfiguration`, `MonitoringEvent`, `MonitoringRecord`, and `CircularGeographicCondition` bridge the newer named-condition monitoring APIs on macOS 14+.
-- **Geocoding** — `Geocoder` supports forward, reverse, region-scoped, locale-aware, and postal-address geocoding, while `Placemark` now includes `postal_address` snapshots.
+- **Geocoding (deprecated)** — `Geocoder` supports forward, reverse, region-scoped, locale-aware, and postal-address geocoding, and `Placemark` includes `postal_address` snapshots. `CLGeocoder` is deprecated in macOS 26, so `Geocoder` is `#[deprecated]`; new code should use `MKGeocodingRequest` / `MKReverseGeocodingRequest` from the `mapkit` crate.
 - **Framework constants and errors** — location sentinel helpers plus `CLErrorCode`, `error::error_domain()`, and `error::alternate_region_key()` cover the remaining public macOS `CoreLocation` constants.
 - **Async streams** — `async_api::LocationManagerStream` and `async_api::MonitorStream` (feature `async`) wrap `CLLocationManagerDelegate` callbacks and `CLMonitor.events` as executor-agnostic [`BoundedAsyncStream`](https://crates.io/crates/doom-fish-utils) event streams. Works with any async runtime (pollster, tokio, async-std, …).
 - **Live updates** — `LocationUpdater`, `LocationUpdate`, and `LiveUpdateConfiguration` bridge the Swift-refined `CLLocationUpdate.liveUpdates(_:)` API on macOS 14+.
@@ -17,37 +17,42 @@ Safe, idiomatic Rust bindings for Apple's [CoreLocation](https://developer.apple
 ## Requirements
 
 - macOS 10.15 or newer
-- Xcode 15+ with the macOS SDK
-- For authorization prompts in GUI apps, the relevant `NSLocation*UsageDescription` keys in your app's `Info.plist`
+- Xcode 16 or newer (the bridge uses macOS 15 SDK symbols behind runtime availability checks)
+- For authorization prompts in GUI apps, the relevant `NSLocation*UsageDescription` keys in your app's `Info.plist`. A binary without those keys (for example a plain `cargo run` or `cargo test` executable) can't show the prompt, so `CoreLocation` reports it as not authorized.
 
 ## Installation
 
 ```toml
 [dependencies]
-corelocation-rs = "0.2.2"
+corelocation-rs = "0.4"
 ```
 
 ```rust,no_run
+use std::sync::mpsc;
+use std::time::Duration;
+
 use corelocation::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let manager = LocationManager::new()?;
-    println!("authorization: {:?}", manager.authorization()?);
     println!("location services: {}", LocationManager::location_services_enabled());
 
-    let geocoder = Geocoder::new()?;
-    let placemarks = geocoder.geocode_address_string("Apple Park, Cupertino")?;
-    if let Some(first) = placemarks.first() {
-        println!("locality: {:?}", first.locality);
-        println!("country: {:?}", first.country);
-    }
+    let (sender, receiver) = mpsc::channel();
+    let manager = LocationManager::with_callbacks(
+        LocationManagerCallbacks::new().on_authorization_details(move |snapshot| {
+            let _ = sender.send(snapshot);
+        }),
+    )?;
+    let snapshot = receiver.recv_timeout(Duration::from_secs(5))?;
+    println!("authorization: {snapshot:?}");
+
+    manager.start_updating_location();
     Ok(())
 }
 ```
 
 ## Examples
 
-The crate ships with twelve numbered examples covering the requested logical areas:
+The crate ships with fourteen numbered examples covering the requested logical areas:
 
 - `01_smoke` — location manager + authorization + geocoder smoke test
 - `02_location_values` — coordinates, sentinel constants, distance helpers, and `LocationDetails`
@@ -61,6 +66,8 @@ The crate ships with twelve numbered examples covering the requested logical are
 - `10_location_update_stream` — `LocationUpdater` and `LocationUpdate`
 - `11_beacon_identity_condition` — Swift-refined beacon identity conditions and the legacy `CLBeaconIdentityConstraint` wrapper
 - `12_monitor_conditions` — named condition monitors, monitoring records, and circular geographic conditions
+- `13_async_location_stream` — `async_api::LocationManagerStream` (feature `async`)
+- `14_async_monitor_stream` — `async_api::MonitorStream` (feature `async`)
 
 Run any example with:
 
@@ -78,12 +85,18 @@ cargo test
 
 ## Coverage audit
 
-See [`COVERAGE.md`](COVERAGE.md) for the v0.2.2 header audit, implemented rows, and the remaining deprecated or unavailable framework families.
+See [`COVERAGE.md`](COVERAGE.md) for the header audit (written for v0.2.2 and not regenerated since; its scope note says what the rows measure), implemented rows, and the remaining deprecated or unavailable framework families.
+
+## Threading model
+
+- `CoreLocation` delivers `CLLocationManager` delegate callbacks on the run loop of the thread that created the manager, and a thread without a running run loop never receives them. The crate therefore creates every `CLLocationManager` (for `LocationManager` and `async_api::LocationManagerStream`) on a dedicated thread, named `corelocation-rs`, that it starts on first use and that runs its own run loop. You don't need a run loop of your own: managers work the same from the main thread, plain threads and async-runtime workers such as tokio.
+- `LocationManagerDelegate` / `LocationManagerCallbacks` methods run on that thread, one at a time, as does the completion of `request_temporary_full_accuracy_authorization` (which therefore fails when called from inside a callback). Keep callbacks short.
+- Creating or dropping a `LocationManager` or `LocationManagerStream` waits for the `CoreLocation` thread, so drop never races a callback in progress and no callback runs after drop returns. Don't block inside a callback on a thread that is creating or dropping a manager.
+- `LocationUpdater` and `Monitor` callbacks run on Swift's concurrency thread pool. `LocationUpdater::pause`, `LocationUpdater::invalidate` and drop (for both types) stop the underlying task and wait up to two seconds for a callback in progress; no new callback starts after they return. A paused updater doesn't report `did_invalidate`: that callback means the live-update sequence ended on its own.
+- `Geocoder` (deprecated) blocks for up to five seconds. `CLGeocoder` completes only on the main thread, so a call on the main thread runs the main run loop while it waits, and a call from another thread only succeeds while the main thread is running its run loop (an app event loop or `CFRunLoopRun`). A timed-out request is cancelled.
 
 ## Notes
 
-- `LocationManager` delegate callbacks are delivered on `CoreLocation`'s run-loop thread. CLI programs that want streaming updates should keep a run loop alive (`CFRunLoopRun`, `NSApplication::run`, etc.).
-- `Geocoder` is exposed as a synchronous Rust API using a semaphore-backed bridge around `CoreLocation` completion handlers.
 - `LocationUpdater` mirrors the Swift-refined `CLLocationUpdate.liveUpdates(_:)` API and requires macOS 14.0 or newer.
 - `Monitor`, `MonitoringEvent`, and `CircularGeographicCondition` mirror the Swift-refined condition-monitoring APIs and require macOS 14.0 or newer.
 
