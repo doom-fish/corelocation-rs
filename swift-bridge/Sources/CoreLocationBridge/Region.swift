@@ -2,11 +2,11 @@ import CoreLocation
 import Foundation
 
 func cl_region_state_raw(_ state: CLRegionState) -> Int32 {
-    Int32(state.rawValue)
+    Int32(clamping: state.rawValue)
 }
 
 func cl_proximity_raw(_ proximity: CLProximity) -> Int32 {
-    Int32(proximity.rawValue)
+    Int32(clamping: proximity.rawValue)
 }
 
 func cl_parse_uuid(

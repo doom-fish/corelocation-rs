@@ -215,7 +215,7 @@ public func cl_manager_desired_accuracy(_ managerPtr: UnsafeMutableRawPointer?) 
 
 @_cdecl("cl_manager_activity_type")
 public func cl_manager_activity_type(_ managerPtr: UnsafeMutableRawPointer?) -> Int32 {
-    Int32(cl_manager_box(managerPtr)?.manager.activityType.rawValue ?? CLActivityType.other.rawValue)
+    Int32(clamping: cl_manager_box(managerPtr)?.manager.activityType.rawValue ?? CLActivityType.other.rawValue)
 }
 
 @_cdecl("cl_manager_set_activity_type")

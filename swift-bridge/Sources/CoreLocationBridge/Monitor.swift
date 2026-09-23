@@ -90,12 +90,12 @@ private func cl_circular_geographic_condition_object(
 
 @available(macOS 14.0, *)
 func cl_monitoring_state_raw(_ state: CLMonitor.Event.State) -> Int32 {
-    Int32(state.rawValue)
+    Int32(clamping: state.rawValue)
 }
 
 @available(macOS 14.0, *)
 private func cl_monitoring_state(_ rawValue: Int32) -> CLMonitor.Event.State {
-    CLMonitor.Event.State(rawValue: UInt(max(rawValue, 0))) ?? CLMonitor.Event.State(rawValue: 0)!
+    CLMonitor.Event.State(rawValue: UInt(max(rawValue, 0))) ?? .unknown
 }
 
 @available(macOS 14.0, *)
