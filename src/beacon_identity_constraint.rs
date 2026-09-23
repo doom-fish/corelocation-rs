@@ -20,7 +20,7 @@ impl BeaconIdentityConstraint {
         let mut raw = core::ptr::null_mut();
         let mut error = core::ptr::null_mut();
         let status = unsafe {
-            ffi::cl_beacon_identity_constraint_new_uuid(uuid.as_ptr(), &mut raw, &mut error)
+            ffi::cl_beacon_identity_constraint_new_uuid(uuid.as_ptr(), &raw mut raw, &raw mut error)
         };
         if status == ffi::status::OK {
             Ok(Self { raw })
@@ -38,8 +38,8 @@ impl BeaconIdentityConstraint {
             ffi::cl_beacon_identity_constraint_new_uuid_major(
                 uuid.as_ptr(),
                 major,
-                &mut raw,
-                &mut error,
+                &raw mut raw,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {
@@ -59,8 +59,8 @@ impl BeaconIdentityConstraint {
                 uuid.as_ptr(),
                 major,
                 minor,
-                &mut raw,
-                &mut error,
+                &raw mut raw,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {

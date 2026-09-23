@@ -270,8 +270,8 @@ impl LocationUpdater {
                 configuration as i32,
                 callback,
                 user_info,
-                &mut raw,
-                &mut error,
+                &raw mut raw,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {

@@ -720,7 +720,7 @@ impl LocationManager {
             None
         };
 
-        let status = unsafe { ffi::cl_manager_new(callback, user_info, &mut raw, &mut error) };
+        let status = unsafe { ffi::cl_manager_new(callback, user_info, &raw mut raw, &raw mut error) };
         if status == ffi::status::OK {
             Ok(Self {
                 raw,
@@ -897,7 +897,7 @@ impl LocationManager {
             ffi::cl_manager_request_temporary_full_accuracy_authorization(
                 self.raw,
                 purpose_key.as_ptr(),
-                &mut error,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {
@@ -925,7 +925,7 @@ impl LocationManager {
     /// Wraps `CLLocationManager.startUpdatingHeading`.
     pub fn start_updating_heading(&self) -> Result<(), CoreLocationError> {
         let mut error = core::ptr::null_mut();
-        let status = unsafe { ffi::cl_manager_start_updating_heading(self.raw, &mut error) };
+        let status = unsafe { ffi::cl_manager_start_updating_heading(self.raw, &raw mut error) };
         if status == ffi::status::OK {
             Ok(())
         } else {
@@ -992,7 +992,7 @@ impl LocationManager {
     {
         let mut error = core::ptr::null_mut();
         let status = unsafe {
-            ffi::cl_manager_start_monitoring_region(self.raw, region.as_raw(), &mut error)
+            ffi::cl_manager_start_monitoring_region(self.raw, region.as_raw(), &raw mut error)
         };
         if status == ffi::status::OK {
             Ok(())
@@ -1014,7 +1014,7 @@ impl LocationManager {
     {
         let mut error = core::ptr::null_mut();
         let status = unsafe {
-            ffi::cl_manager_request_state_for_region(self.raw, region.as_raw(), &mut error)
+            ffi::cl_manager_request_state_for_region(self.raw, region.as_raw(), &raw mut error)
         };
         if status == ffi::status::OK {
             Ok(())
@@ -1030,7 +1030,7 @@ impl LocationManager {
     ) -> Result<(), CoreLocationError> {
         let mut error = core::ptr::null_mut();
         let status = unsafe {
-            ffi::cl_manager_start_ranging_beacons(self.raw, condition.as_raw(), &mut error)
+            ffi::cl_manager_start_ranging_beacons(self.raw, condition.as_raw(), &raw mut error)
         };
         if status == ffi::status::OK {
             Ok(())

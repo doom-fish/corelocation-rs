@@ -452,8 +452,8 @@ impl MonitorStream {
                 name_cstr.as_ptr(),
                 monitor_stream_cb,
                 sender_ptr,
-                &mut bridge_ptr,
-                &mut error,
+                &raw mut bridge_ptr,
+                &raw mut error,
             )
         };
 
@@ -492,7 +492,7 @@ impl MonitorStream {
                 self.bridge_ptr,
                 condition.as_raw(),
                 id_cstr.as_ptr(),
-                &mut error,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {
@@ -512,7 +512,7 @@ impl MonitorStream {
             ffi::cl_monitor_stream_remove_condition(
                 self.bridge_ptr,
                 id_cstr.as_ptr(),
-                &mut error,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {

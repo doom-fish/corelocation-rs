@@ -169,8 +169,8 @@ impl CircularGeographicCondition {
                 center.latitude,
                 center.longitude,
                 radius,
-                &mut raw,
-                &mut error,
+                &raw mut raw,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {
@@ -390,7 +390,7 @@ impl Monitor {
         };
 
         let status = unsafe {
-            ffi::cl_monitor_new(name.as_ptr(), callback, user_info, &mut raw, &mut error)
+            ffi::cl_monitor_new(name.as_ptr(), callback, user_info, &raw mut raw, &raw mut error)
         };
         if status == ffi::status::OK {
             Ok(Self {
@@ -426,7 +426,7 @@ impl Monitor {
                 self.raw,
                 condition.as_raw(),
                 identifier.as_ptr(),
-                &mut error,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {
@@ -453,7 +453,7 @@ impl Monitor {
                 condition.as_raw(),
                 identifier.as_ptr(),
                 state.into(),
-                &mut error,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {
@@ -468,7 +468,7 @@ impl Monitor {
         let identifier = to_cstring(identifier)?;
         let mut error = core::ptr::null_mut();
         let status =
-            unsafe { ffi::cl_monitor_remove_condition(self.raw, identifier.as_ptr(), &mut error) };
+            unsafe { ffi::cl_monitor_remove_condition(self.raw, identifier.as_ptr(), &raw mut error) };
         if status == ffi::status::OK {
             Ok(())
         } else {

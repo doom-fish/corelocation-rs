@@ -40,7 +40,7 @@ impl Geocoder {
     pub fn new() -> Result<Self, CoreLocationError> {
         let mut raw = core::ptr::null_mut();
         let mut error = core::ptr::null_mut();
-        let status = unsafe { ffi::cl_geocoder_new(&mut raw, &mut error) };
+        let status = unsafe { ffi::cl_geocoder_new(&raw mut raw, &raw mut error) };
         if status == ffi::status::OK {
             Ok(Self { raw })
         } else {
@@ -71,8 +71,8 @@ impl Geocoder {
             ffi::cl_geocoder_geocode_address_string(
                 self.raw,
                 address.as_ptr(),
-                &mut json,
-                &mut error,
+                &raw mut json,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {
@@ -114,8 +114,8 @@ impl Geocoder {
                 locale
                     .as_ref()
                     .map_or(core::ptr::null(), |value| value.as_ptr()),
-                &mut json,
-                &mut error,
+                &raw mut json,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {
@@ -167,8 +167,8 @@ impl Geocoder {
                 locale
                     .as_ref()
                     .map_or(core::ptr::null(), |value| value.as_ptr()),
-                &mut json,
-                &mut error,
+                &raw mut json,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {
@@ -205,8 +205,8 @@ impl Geocoder {
                 locale
                     .as_ref()
                     .map_or(core::ptr::null(), |value| value.as_ptr()),
-                &mut json,
-                &mut error,
+                &raw mut json,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {

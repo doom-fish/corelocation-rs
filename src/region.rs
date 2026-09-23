@@ -178,8 +178,8 @@ impl CircularRegion {
                 center.longitude,
                 radius,
                 identifier.as_ptr(),
-                &mut raw,
-                &mut error,
+                &raw mut raw,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {
@@ -265,8 +265,8 @@ impl BeaconRegion {
             ffi::cl_beacon_region_new_condition(
                 condition.as_raw(),
                 identifier.as_ptr(),
-                &mut raw,
-                &mut error,
+                &raw mut raw,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {
@@ -288,8 +288,8 @@ impl BeaconRegion {
             ffi::cl_beacon_region_new_constraint(
                 constraint.as_raw(),
                 identifier.as_ptr(),
-                &mut raw,
-                &mut error,
+                &raw mut raw,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {
@@ -316,21 +316,21 @@ impl BeaconRegion {
                     major,
                     minor,
                     identifier.as_ptr(),
-                    &mut raw,
-                    &mut error,
+                    &raw mut raw,
+                    &raw mut error,
                 ),
                 (Some(major), None) => ffi::cl_beacon_region_new_uuid_major(
                     uuid.as_ptr(),
                     major,
                     identifier.as_ptr(),
-                    &mut raw,
-                    &mut error,
+                    &raw mut raw,
+                    &raw mut error,
                 ),
                 _ => ffi::cl_beacon_region_new_uuid(
                     uuid.as_ptr(),
                     identifier.as_ptr(),
-                    &mut raw,
-                    &mut error,
+                    &raw mut raw,
+                    &raw mut error,
                 ),
             }
         };
@@ -364,8 +364,8 @@ impl BeaconRegion {
                 self.raw,
                 measured_power.is_some(),
                 measured_power.unwrap_or_default(),
-                &mut json,
-                &mut error,
+                &raw mut json,
+                &raw mut error,
             )
         };
         if status == ffi::status::OK {
