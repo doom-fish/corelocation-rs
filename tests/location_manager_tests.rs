@@ -19,10 +19,14 @@ fn location_manager_smoke_and_configuration_round_trip() -> Result<(), Box<dyn s
     );
     assert!(!manager.pauses_location_updates_automatically());
     assert!(!manager.allows_background_location_updates());
-    assert_eq!(
-        manager.authorization()?.status,
-        manager.authorization_status()
-    );
+    let (status, snapshot) = loop {
+        let status = manager.authorization_status();
+        let snapshot = manager.authorization()?;
+        if manager.authorization_status() == status {
+            break (status, snapshot);
+        }
+    };
+    assert_eq!(snapshot.status, status);
     Ok(())
 }
 
@@ -41,11 +45,17 @@ fn delegate_callbacks_arrive_without_a_run_loop_on_the_creating_thread() {
     )
     .expect("LocationManager::with_callbacks");
 
-    let (snapshot, delivery_thread) = receiver
+    let (mut snapshot, delivery_thread) = receiver
         .recv_timeout(Duration::from_secs(10))
         .expect("the initial authorization callback must arrive");
     assert_ne!(delivery_thread, creator);
-    assert_eq!(snapshot.status, manager.authorization_status());
+    while snapshot.status != manager.authorization_status() {
+        let (changed, changed_thread) = receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("every authorization change must be delivered");
+        assert_ne!(changed_thread, creator);
+        snapshot = changed;
+    }
 
     drop(manager);
     let _earlier: Vec<_> = receiver.try_iter().collect();
