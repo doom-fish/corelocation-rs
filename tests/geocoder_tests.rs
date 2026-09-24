@@ -1,5 +1,7 @@
 #![allow(deprecated)]
 
+mod common;
+
 use corelocation::prelude::*;
 
 #[test]
@@ -45,6 +47,9 @@ fn geocoder_creation_and_extended_methods_smoke() -> Result<(), Box<dyn std::err
         2_000.0,
         "apple-park-search",
     )?;
+    if !common::live_tests_enabled() {
+        return Ok(());
+    }
     let _ = geocoder.geocode_address_string_in_region("Apple Park", Some(&region));
     let _ = geocoder.geocode_postal_address(&PostalAddress::default());
     Ok(())

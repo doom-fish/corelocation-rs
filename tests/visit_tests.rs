@@ -1,3 +1,5 @@
+mod common;
+
 use corelocation::prelude::*;
 
 #[test]
@@ -12,6 +14,9 @@ fn visit_round_trip_and_manager_methods_smoke() -> Result<(), Box<dyn std::error
     let decoded: Visit = serde_json::from_str(&json)?;
     assert_eq!(decoded, visit);
 
+    if !common::live_tests_enabled() {
+        return Ok(());
+    }
     let manager = LocationManager::new()?;
     manager.start_monitoring_visits();
     manager.stop_monitoring_visits();

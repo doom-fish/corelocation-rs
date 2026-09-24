@@ -3,6 +3,8 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
+mod common;
+
 use corelocation::prelude::*;
 
 #[test]
@@ -58,7 +60,7 @@ fn wait_for(limit: Duration, condition: impl Fn() -> bool) -> bool {
 #[test]
 fn dropping_a_resumed_updater_stops_its_task_and_frees_the_delegate(
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if !LocationUpdater::is_supported() {
+    if !common::live_tests_enabled() || !LocationUpdater::is_supported() {
         return Ok(());
     }
     let counters = Arc::new(Counters::default());
@@ -78,7 +80,7 @@ fn dropping_a_resumed_updater_stops_its_task_and_frees_the_delegate(
 #[test]
 fn pausing_does_not_report_invalidation_and_resume_starts_a_new_run(
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if !LocationUpdater::is_supported() {
+    if !common::live_tests_enabled() || !LocationUpdater::is_supported() {
         return Ok(());
     }
     let counters = Arc::new(Counters::default());

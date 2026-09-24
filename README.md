@@ -83,6 +83,8 @@ The crate includes one integration test file per logical area under `tests/`. Ru
 cargo test
 ```
 
+Tests that start location services or send geocoding requests run only with `CORELOCATION_LIVE_TESTS=1`.
+
 ## Coverage audit
 
 See [`COVERAGE.md`](COVERAGE.md) for the header audit (written for v0.2.2 and not regenerated since; its scope note says what the rows measure), implemented rows, and the remaining deprecated or unavailable framework families.

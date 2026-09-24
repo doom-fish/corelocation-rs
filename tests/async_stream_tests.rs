@@ -12,6 +12,8 @@
 
 #![cfg(feature = "async")]
 
+mod common;
+
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -38,6 +40,9 @@ fn location_manager_stream_subscribe_and_drop() {
 
 #[test]
 fn location_manager_stream_start_stop_updating() {
+    if !common::live_tests_enabled() {
+        return;
+    }
     let stream = LocationManagerStream::new(4).expect("LocationManagerStream::new");
     // These calls should not panic even if location services are not authorised.
     stream.start_updating_location();
@@ -161,6 +166,9 @@ fn monitor_stream_is_closed_after_drop() {
 
 #[test]
 fn location_manager_stream_block_on_try_next() {
+    if !common::live_tests_enabled() {
+        return;
+    }
     let stream = LocationManagerStream::new(8).expect("LocationManagerStream::new");
     stream.start_updating_location();
 
