@@ -157,9 +157,9 @@ pub fn error_domain() -> &'static str {
 /// Returns `CLErrorUserInfoAlternateRegionKey`.
 pub fn alternate_region_key() -> &'static str {
     ALTERNATE_REGION_KEY
-        .get_or_init(|| take_owned_c_string(unsafe {
-            ffi::cl_error_user_info_alternate_region_key()
-        }))
+        .get_or_init(|| {
+            take_owned_c_string(unsafe { ffi::cl_error_user_info_alternate_region_key() })
+        })
         .as_str()
 }
 
@@ -264,7 +264,7 @@ mod tests {
         let first = error_domain();
         let second = error_domain();
 
-        assert!(!first.is_empty());
+        assert_ne!(first, "");
         assert!(std::ptr::eq(first, second));
     }
 
@@ -273,7 +273,7 @@ mod tests {
         let first = alternate_region_key();
         let second = alternate_region_key();
 
-        assert!(!first.is_empty());
+        assert_ne!(first, "");
         assert!(std::ptr::eq(first, second));
     }
 }
